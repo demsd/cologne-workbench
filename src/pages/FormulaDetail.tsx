@@ -38,6 +38,7 @@ import {
   ChevronRight,
   GitCompare,
   PenLine,
+  Printer,
   Scale,
   Trash2,
 } from "lucide-react";
@@ -257,6 +258,12 @@ export default function FormulaDetail() {
                   {detail.parentVersion
                     ? `Compare with ${detail.parentVersion}`
                     : "Compare versions"}
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link to={`/formulas/${detail._id}/print`}>
+                  <Printer className="size-4" />
+                  Print sheet
                 </Link>
               </Button>
             </div>
