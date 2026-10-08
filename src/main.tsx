@@ -19,6 +19,7 @@ const NotePicker = lazy(() => import("./pages/NotePicker.tsx"));
 const ProductionLog = lazy(() => import("./pages/ProductionLog.tsx"));
 const FormulaPrint = lazy(() => import("./pages/FormulaPrint.tsx"));
 const Restock = lazy(() => import("./pages/Restock.tsx"));
+const Backup = lazy(() => import("./pages/Backup.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -146,6 +147,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/notes" element={<NotePicker />} />
               <Route path="/log" element={<ProductionLog />} />
               <Route path="/restock" element={<Restock />} />
+              <Route path="/backup" element={<Backup />} />
               <Route
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/dashboard" />}

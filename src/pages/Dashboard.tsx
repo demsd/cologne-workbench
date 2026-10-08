@@ -8,7 +8,14 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Filter, LayoutDashboard, LogOut, Plus, ScrollText } from "lucide-react";
+import {
+  Database,
+  Filter,
+  LayoutDashboard,
+  LogOut,
+  Plus,
+  ScrollText,
+} from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -341,6 +348,12 @@ export default function Dashboard() {
             <Link to="/log">
               <ScrollText className="size-3.5" />
               Production log
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="gap-1.5">
+            <Link to="/backup">
+              <Database className="size-3.5" />
+              Backup &amp; export
             </Link>
           </Button>
           <span className="label-caps ml-auto hidden sm:block">

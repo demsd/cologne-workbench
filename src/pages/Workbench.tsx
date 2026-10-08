@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { motion } from "framer-motion";
 import {
   Boxes,
+  Database,
   Filter,
   GitCompare,
   LayoutDashboard,
@@ -79,6 +80,12 @@ export default function Workbench() {
                 <Link to="/dashboard">
                   <LayoutDashboard className="size-3.5" />
                   Dashboard
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="ghost" className="gap-1.5">
+                <Link to="/backup">
+                  <Database className="size-3.5" />
+                  Backup
                 </Link>
               </Button>
             </div>
