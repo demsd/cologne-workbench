@@ -6,7 +6,7 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { toInventoryCsv } from "@/lib/csv";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Database, Download } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 import { useMemo } from "react";
 import { Link } from "react-router";
 
