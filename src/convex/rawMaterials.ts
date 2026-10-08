@@ -35,14 +35,20 @@ export const list = query({
 });
 
 /**
- * Idempotently installs the starter shelf the first time the app opens, so the
- * ingredient dropdown is never empty. Safe to call on every load: it only
- * inserts materials whose name is not on the shelf yet.
+ * Installs the starter shelf on the very first open, so the ingredient
+ * dropdown is never empty. Seeding happens ONCE, ever (tracked in labSettings):
+ * once the shelf has been stocked, an emptied shelf stays empty — clearing the
+ * inventory before an import is not undone by a page reload.
  */
 export const ensureStarterKit = mutation({
   args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("rawMaterials").collect();
+    const settings = (await ctx.db.query("labSettings").collect())[0] ?? null;
+    if (settings?.shelfSeeded) {
+      return { inserted: 0, total: existing.length, alreadySeeded: true };
+    }
+
     const have = new Set(existing.map((m) => m.name.toLowerCase()));
     let inserted = 0;
 
@@ -61,7 +67,35 @@ export const ensureStarterKit = mutation({
       inserted += 1;
     }
 
-    return { inserted, total: existing.length + inserted };
+    if (settings) {
+      await ctx.db.patch(settings._id, { shelfSeeded: true });
+    } else {
+      await ctx.db.insert("labSettings", { shelfSeeded: true });
+    }
+
+    return { inserted, total: existing.length + inserted, alreadySeeded: false };
+  },
+});
+
+/**
+ * Empty the shelf entirely (before importing a fresh price list). Refuses
+ * while any formula version still references a material, so records never
+ * dangle — the starter shelf is NOT re-installed afterward.
+ */
+export const clearAll = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const formulas = await ctx.db.query("formulas").collect();
+    if (formulas.length > 0) {
+      throw new Error(
+        `The shelf still backs ${formulas.length} formula version(s) — delete them first so weighing records never dangle.`,
+      );
+    }
+    const materials = await ctx.db.query("rawMaterials").collect();
+    for (const material of materials) {
+      await ctx.db.delete(material._id);
+    }
+    return { removed: materials.length };
   },
 });
 

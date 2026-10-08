@@ -111,6 +111,13 @@ const schema = defineSchema(
     }).index("by_formula", ["formulaId"]),
 
     // -----------------------------------------------------------------------
+    // Lab settings — single row; the starter shelf is seeded once, ever.
+    // -----------------------------------------------------------------------
+    labSettings: defineTable({
+      shelfSeeded: v.boolean(),
+    }),
+
+    // -----------------------------------------------------------------------
     // 4. Production batches — immutable records of completed weighing
     //    sessions (the Lab Journal history page reads these later).
     // -----------------------------------------------------------------------
