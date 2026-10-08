@@ -1,4 +1,15 @@
 import { api } from "@/convex/_generated/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { OlfactiveGroup } from "@/convex/schema";
 import { Button } from "@/components/ui/button";
@@ -21,9 +32,18 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { ArrowLeft, ChevronRight, GitCompare, PenLine, Scale } from "lucide-react";
-import { Link, useParams } from "react-router";
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import {
+  ArrowLeft,
+  ChevronRight,
+  GitCompare,
+  PenLine,
+  Scale,
+  Trash2,
+} from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
+import { useMutation, useQuery } from "convex/react";
 
 /** Ink colours per subsection — ochre, olive, oxblood, faded indigo. */
 const GROUP_COLORS: Record<OlfactiveGroup, string> = {
@@ -43,6 +63,34 @@ export default function FormulaDetail() {
     api.formulas.lineage,
     id ? { id: id as Id<"formulas"> } : "skip",
   );
+  const removeFormula = useMutation(api.formulas.remove);
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+
+  /** Delete this version; the ledger survives with its lineage re-linked. */
+  async function handleDelete() {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      const result = await removeFormula({ id: id as Id<"formulas"> });
+      toast.success(
+        `${result.removedName} ${result.removedVersion} deleted`,
+        {
+          description:
+            result.relinkedChildren > 0
+              ? `${result.relinkedChildren} revision${result.relinkedChildren === 1 ? "" : "s"} re-linked — the lineage survives.`
+              : "The ledger no longer lists it.",
+        },
+      );
+      navigate("/");
+    } catch (error) {
+      toast.error("This version cannot be deleted", {
+        description:
+          error instanceof Error ? error.message : "Try again.",
+      });
+      setDeleting(false);
+    }
+  }
 
   const backLink = (
     <Link
@@ -393,9 +441,46 @@ export default function FormulaDetail() {
           <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-5">
             <p className="label-caps">
               Filed {format(new Date(detail._creationTime), "d MMMM yyyy")} ·
-              Tapputi Lab
+              Tapputi Lab · Sheet 1 of 1
             </p>
-            <p className="label-caps">Cologne Workbench · Sheet 1 of 1</p>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-destructive/40 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete version
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    Delete {detail.name} — {detail.versionNumber}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    The version and its {detail.ingredientCount} ingredient rows
+                    leave the ledger for good.
+                    {lineage && lineage.length > 1
+                      ? " Revisions descending from it will re-link to the version before it, so the lineage survives."
+                      : ""}{" "}
+                    Versions already weighed into a batch are protected, so
+                    traceability is never broken.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep it</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={deleting}
+                    onClick={handleDelete}
+                    className="bg-destructive text-white hover:bg-destructive/90"
+                  >
+                    {deleting ? "Deleting…" : "Delete for good"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </footer>
         </motion.article>
       </div>

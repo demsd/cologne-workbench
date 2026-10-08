@@ -51,6 +51,54 @@ export const get = query({
 });
 
 /**
+ * Delete one formula version. Lineage survives: children are re-linked to the
+ * deleted node's parent (or become roots). Versions that have been weighed
+ * into an immutable batch are protected — traceability is never broken.
+ */
+export const remove = mutation({
+  args: { id: v.id("formulas") },
+  handler: async (ctx, { id }) => {
+    const formula = await ctx.db.get(id);
+    if (!formula) throw new Error("That version is missing.");
+
+    const batches = await ctx.db
+      .query("productionBatches")
+      .withIndex("by_formula", (q) => q.eq("formulaId", id))
+      .collect();
+    if (batches.length > 0) {
+      throw new Error(
+        `This version was weighed into batch ${batches
+          .map((batch) => batch.batchNumber)
+          .join(", ")} — records of the bench keep their formula, so it cannot be deleted.`,
+      );
+    }
+
+    // Re-link children before removing the node so the lineage never dangles.
+    const children = await ctx.db
+      .query("formulas")
+      .withIndex("by_parent", (q) => q.eq("parentId", id))
+      .collect();
+    for (const child of children) {
+      await ctx.db.patch(child._id, { parentId: formula.parentId });
+    }
+
+    const items = await ctx.db
+      .query("formulaItems")
+      .withIndex("by_formula", (q) => q.eq("formulaId", id))
+      .collect();
+    for (const item of items) await ctx.db.delete(item._id);
+    await ctx.db.delete(id);
+
+    return {
+      removedName: formula.name,
+      removedVersion: formula.versionNumber,
+      relinkedChildren: children.length,
+      removedItems: items.length,
+    };
+  },
+});
+
+/**
  * The whole version family this formula belongs to: walks up to the root of
  * the parent chain, then collects every descendant (breadth-first, so
  * branches survive), returned oldest first.

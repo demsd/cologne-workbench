@@ -13,7 +13,7 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { GitCompare, Plus } from "lucide-react";
+import { ArrowDown, GitCompare, Plus } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
@@ -95,8 +95,18 @@ export default function Workbench() {
                   New formula
                 </Link>
               </Button>
-              <Button asChild variant="outline" size="lg">
-                <a href="#ledger">Open the ledger</a>
+              <Button
+                variant="outline"
+                size="lg"
+                className="gap-1.5"
+                onClick={() =>
+                  document
+                    .getElementById("ledger")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                <ArrowDown className="size-4" />
+                Open the ledger
               </Button>
             </div>
 
