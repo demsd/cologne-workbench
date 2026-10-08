@@ -1,13 +1,19 @@
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStarterMaterials } from "@/hooks/use-starter-materials";
-import { GROUP_HEADINGS, GROUP_ORDER, formatGrams } from "@/lib/formula-math";
+import { GROUP_HEADINGS } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
+import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router";
+
+/** The note picker speaks in the classic pyramid — Top, Middle, Base. */
+const NOTE_GROUPS = ["Top", "Middle", "Base"] as const;
 
 function Chip({
   active,
@@ -49,95 +55,95 @@ function Chip({
 
 export default function NotePicker() {
   const materials = useStarterMaterials();
+  /** Every fragrance: the latest version per name, with its materials. */
+  const fragrances = useQuery(api.formulas.library);
 
-  /** The classic pyramid is preselected: Top, Middle, Base. */
-  const defaultGroups = ["Top", "Middle", "Base"];
-  const [groupFilter, setGroupFilter] = useState<Set<string>>(
-    () => new Set(defaultGroups),
+  /** The selected notes are materials picked from the shelf. */
+  const [selected, setSelected] = useState<Set<Id<"rawMaterials">>>(
+    new Set(),
   );
-  const [noteFilter, setNoteFilter] = useState<Set<string>>(new Set());
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
-  const [search, setSearch] = useState("");
+  const [noteSearch, setNoteSearch] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
 
   const shelf = useMemo(() => materials ?? [], [materials]);
 
-  /** Every note on the shelf with its count — the picker's matrix. */
-  const noteCounts = useMemo(() => {
+  /** How many fragrances use each material — the count on every note chip. */
+  const fragranceCount = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const material of shelf) {
-      for (const note of material.notes ?? []) {
-        counts.set(note, (counts.get(note) ?? 0) + 1);
+    for (const fragrance of fragrances ?? []) {
+      for (const id of fragrance.materialIds) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
       }
     }
-    return [...counts.entries()].sort(
-      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    return counts;
+  }, [fragrances]);
+
+  /** Left panel: Top / Middle / Base notes from the shelf, alphabetical. */
+  const noteSections = useMemo(() => {
+    const needle = noteSearch.trim().toLowerCase();
+    return NOTE_GROUPS.map((group) => ({
+      group,
+      heading: GROUP_HEADINGS[group],
+      items: shelf
+        .filter(
+          (material) =>
+            material.olfactiveGroup === group &&
+            (!needle || material.name.toLowerCase().includes(needle)),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+  }, [shelf, noteSearch]);
+
+  /** Right panel: the fragrances that contain the selected notes. */
+  const results = useMemo(() => {
+    const picked = [...selected];
+    const needle = nameSearch.trim().toLowerCase();
+    const matched = (fragrances ?? [])
+      .filter((fragrance) => {
+        if (needle && !fragrance.name.toLowerCase().includes(needle)) {
+          return false;
+        }
+        if (picked.length === 0) return true;
+        const materialsIn = new Set(fragrance.materialIds);
+        return matchMode === "all"
+          ? picked.every((id) => materialsIn.has(id))
+          : picked.some((id) => materialsIn.has(id));
+      })
+      .map((fragrance) => {
+        const materialsIn = new Set(fragrance.materialIds);
+        const hits = picked.filter((id) => materialsIn.has(id));
+        const hitNames = hits
+          .map((id) => shelf.find((m) => m._id === id)?.name ?? "")
+          .filter(Boolean);
+        return { ...fragrance, hits: hitNames };
+      });
+
+    // Best matches first; alphabetical when nothing is picked yet.
+    matched.sort((a, b) =>
+      picked.length > 0
+        ? b.hits.length - a.hits.length || a.name.localeCompare(b.name)
+        : a.name.localeCompare(b.name),
     );
-  }, [shelf]);
+    return matched;
+  }, [fragrances, selected, matchMode, nameSearch, shelf]);
 
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    return shelf.filter((material) => {
-      if (groupFilter.size > 0 && !groupFilter.has(material.olfactiveGroup)) {
-        return false;
-      }
-      const materialNotes = material.notes ?? [];
-      if (noteFilter.size > 0) {
-        const picked = [...noteFilter];
-        const has = matchMode === "any"
-          ? picked.some((note) => materialNotes.includes(note))
-          : picked.every((note) => materialNotes.includes(note));
-        if (!has) return false;
-      }
-      if (needle) {
-        const inName = material.name.toLowerCase().includes(needle);
-        const inVendor = (material.vendor ?? "")
-          .toLowerCase()
-          .includes(needle);
-        if (!inName && !inVendor) return false;
-      }
-      return true;
-    });
-  }, [shelf, groupFilter, noteFilter, matchMode, search]);
-
-  /** One list per selected group — the fragrances that contain each. */
-  const sections = useMemo(
-    () =>
-      GROUP_ORDER.filter((group) => groupFilter.has(group)).map((group) => ({
-        group,
-        items: filtered.filter((material) => material.olfactiveGroup === group),
-      })),
-    [filtered, groupFilter],
-  );
-  const visibleCount = sections.reduce((sum, s) => sum + s.items.length, 0);
-
-  const groupsChanged =
-    defaultGroups.some((group) => !groupFilter.has(group)) ||
-    [...groupFilter].some((group) => !defaultGroups.includes(group));
   const filtersOn =
-    groupsChanged || noteFilter.size > 0 || search.trim().length > 0;
+    selected.size > 0 || matchMode !== "any" || noteSearch.trim().length > 0;
 
-  function toggleGroup(group: string) {
-    setGroupFilter((prev) => {
+  function toggleNote(id: Id<"rawMaterials">) {
+    setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(group)) next.delete(group);
-      else next.add(group);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
 
-  function toggleNote(note: string) {
-    setNoteFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(note)) next.delete(note);
-      else next.add(note);
-      return next;
-    });
-  }
-
-  function clearFilters() {
-    setGroupFilter(new Set(defaultGroups));
-    setNoteFilter(new Set());
-    setSearch("");
+  function resetPicker() {
+    setSelected(new Set());
+    setMatchMode("any");
+    setNoteSearch("");
   }
 
   if (materials === undefined) {
@@ -175,6 +181,7 @@ export default function NotePicker() {
           </Link>
           <p className="label-caps hidden sm:block">
             Fragrance library · {shelf.length} materials
+            {fragrances ? ` · ${fragrances.length} fragrances` : ""}
           </p>
         </div>
 
@@ -192,9 +199,8 @@ export default function NotePicker() {
             Note Picker
           </h1>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground italic">
-            Select combinations of groups and notes — the shelf answers with
-            every fragrance that fits. Tag materials with notes in the
-            inventory (or your CSV) to widen the matrix.
+            Pick notes on the left — Top, Middle and Base from your shelf —
+            and every fragrance built from them appears on the right.
           </p>
         </motion.div>
 
@@ -204,79 +210,81 @@ export default function NotePicker() {
               The shelf is empty.
             </p>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground italic">
-              Import a vendor price list or add materials first — the picker
-              works off the fragrances you keep.
+              Import a vendor price list or add materials first — the notes on
+              the left are the fragrances you keep.
             </p>
             <Button asChild className="mt-6">
               <Link to="/inventory">Open the inventory</Link>
             </Button>
           </div>
         ) : (
-          <div className="mt-8 grid items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-            {/* ——— The matrix ——— */}
+          <div className="mt-8 grid items-start gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+            {/* ——— Left: pick your notes ——— */}
             <aside className="paper-sheet rounded-lg border border-border/70 p-4 lg:sticky lg:top-6">
               <div className="flex items-baseline justify-between">
-                <p className="label-caps">Groups</p>
-                {groupFilter.size > 0 ? (
+                <p className="label-caps">Pick your notes</p>
+                {selected.size > 0 ? (
                   <button
                     type="button"
-                    onClick={() => setGroupFilter(new Set())}
+                    onClick={() => setSelected(new Set())}
                     className="label-caps transition-colors hover:text-foreground"
                   >
-                    Clear
+                    Clear ({selected.size})
                   </button>
                 ) : null}
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {GROUP_ORDER.map((group) => (
-                  <Chip
-                    key={group}
-                    active={groupFilter.has(group)}
-                    count={
-                      shelf.filter((m) => m.olfactiveGroup === group).length ||
-                      undefined
-                    }
-                    onClick={() => toggleGroup(group)}
-                  >
-                    {group}
-                  </Chip>
+
+              <Input
+                value={noteSearch}
+                onChange={(event) => setNoteSearch(event.target.value)}
+                placeholder="Find a note…"
+                aria-label="Find a note"
+                className="mt-2 h-9"
+              />
+
+              <div className="mt-4 space-y-5">
+                {noteSections.map((section) => (
+                  <section key={section.group}>
+                    <div className="flex items-baseline justify-between">
+                      <p className="label-caps">{section.heading}</p>
+                      <span className="label-caps text-muted-foreground/70">
+                        {section.items.length}
+                      </span>
+                    </div>
+                    {section.items.length === 0 ? (
+                      <p className="mt-1.5 text-xs italic text-muted-foreground">
+                        {noteSearch.trim()
+                          ? "no note matches the search"
+                          : "none on the shelf yet"}
+                      </p>
+                    ) : (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {section.items.map((material) => (
+                          <Chip
+                            key={material._id}
+                            active={selected.has(material._id)}
+                            count={
+                              fragrances
+                                ? (fragranceCount.get(material._id) ?? 0)
+                                : undefined
+                            }
+                            onClick={() => toggleNote(material._id)}
+                          >
+                            {material.name}
+                          </Chip>
+                        ))}
+                      </div>
+                    )}
+                  </section>
                 ))}
               </div>
 
-              <div className="mt-5 flex items-baseline justify-between">
-                <p className="label-caps">Notes</p>
-                {noteFilter.size > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setNoteFilter(new Set())}
-                    className="label-caps transition-colors hover:text-foreground"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-              {noteCounts.length === 0 ? (
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground italic">
-                  No notes tagged yet — add facets to a material in the
-                  inventory (or a Notes column in your CSV) and they will
-                  appear here.
-                </p>
-              ) : (
-                <div className="mt-2 flex max-h-72 flex-wrap gap-1.5 overflow-y-auto">
-                  {noteCounts.map(([note, count]) => (
-                    <Chip
-                      key={note}
-                      active={noteFilter.has(note)}
-                      count={count}
-                      onClick={() => toggleNote(note)}
-                    >
-                      {note}
-                    </Chip>
-                  ))}
-                </div>
-              )}
+              <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground italic">
+                Fixatives and carriers stay off the board — pick the notes
+                that shape the scent.
+              </p>
 
-              {noteFilter.size > 1 ? (
+              {selected.size > 1 ? (
                 <div className="mt-4">
                   <p className="label-caps">Match</p>
                   <div className="mt-2 flex gap-1.5">
@@ -301,139 +309,135 @@ export default function NotePicker() {
                   variant="outline"
                   size="sm"
                   className="mt-5 w-full gap-1.5"
-                  onClick={clearFilters}
+                  onClick={resetPicker}
                 >
                   <X className="size-3.5" />
-                  Reset the matrix
+                  Reset the picker
                 </Button>
               ) : null}
             </aside>
 
-            {/* ——— Results ——— */}
+            {/* ——— Right: fragrances that contain them ——— */}
             <section>
               <div className="flex flex-wrap items-center gap-3">
                 <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search fragrances or vendors…"
+                  value={nameSearch}
+                  onChange={(event) => setNameSearch(event.target.value)}
+                  placeholder="Search fragrances…"
                   aria-label="Search fragrances"
                   className="h-10 w-full max-w-xs"
                 />
                 <span className="label-caps ml-auto">
-                  {visibleCount} of {shelf.length} fit
+                  {fragrances
+                    ? `${results.length} of ${fragrances.length} fragrances`
+                    : "Loading the shelf…"}
                 </span>
               </div>
 
-              {groupFilter.size === 0 ? (
+              {fragrances === undefined ? (
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <Skeleton className="h-32 w-full rounded-lg" />
+                  <Skeleton className="h-32 w-full rounded-lg" />
+                </div>
+              ) : fragrances.length === 0 ? (
                 <div className="paper-sheet mt-4 rounded-lg border border-border/70 px-6 py-14 text-center">
                   <p className="font-display text-xl font-semibold">
-                    Pick at least one group.
+                    No fragrances filed yet.
                   </p>
                   <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground italic">
-                    Tick Top, Middle and Base — and Fixative or Alcohol when
-                    the work calls for them.
+                    Compose a formula and it will appear here — then this
+                    picker shows which of your notes it contains.
                   </p>
+                  <Button asChild className="mt-5">
+                    <Link to="/formulas/new">Compose a fragrance</Link>
+                  </Button>
                 </div>
-              ) : visibleCount === 0 ? (
+              ) : results.length === 0 ? (
                 <div className="paper-sheet mt-4 rounded-lg border border-border/70 px-6 py-14 text-center">
                   <p className="font-display text-xl font-semibold">
                     Nothing matches.
                   </p>
                   <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground italic">
-                    Loosen a note or two — or switch the match from
+                    No fragrance on the shelf contains that combination —
+                    loosen a note, or switch the match from
                     &ldquo;All notes&rdquo; to &ldquo;Any note&rdquo;.
                   </p>
                   <Button
                     variant="outline"
                     className="mt-5 gap-1.5"
-                    onClick={clearFilters}
+                    onClick={resetPicker}
                   >
                     <X className="size-4" />
-                    Reset the matrix
+                    Reset the picker
                   </Button>
                 </div>
               ) : (
-                <div className="mt-6 space-y-8">
-                  {sections.map((section) =>
-                    section.items.length === 0 ? null : (
-                      <section key={section.group}>
-                        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1.5">
-                          <h2 className="font-display text-2xl font-semibold">
-                            {GROUP_HEADINGS[section.group]}
-                          </h2>
-                          <span className="label-caps">
-                            {section.items.length} fragrance
-                            {section.items.length === 1 ? "" : "s"}
-                          </span>
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                          {section.items.map((material) => (
-                    <article
-                      key={material._id}
-                      className={cn(
-                        "paper-sheet flex flex-col rounded-lg border border-border/70 p-4",
-                        material.isLow && "border-destructive/40",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <h2 className="font-display text-xl leading-tight font-semibold">
-                          {material.name}
-                        </h2>
-                        <span className="label-caps shrink-0 pt-1">
-                          {material.olfactiveGroup}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground italic">
-                        {material.vendor ?? "—"} · {material.category}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {(material.notes ?? []).length === 0 ? (
-                          <span className="text-xs text-muted-foreground italic">
-                            no notes tagged
-                          </span>
-                        ) : (
-                          (material.notes ?? []).map((note) => (
-                            <span
-                              key={note}
-                              className={cn(
-                                "rounded-full border px-2 py-0.5 font-mono text-[10px]",
-                                noteFilter.has(note)
-                                  ? "border-primary bg-primary/10 text-primary"
-                                  : "border-border/70 bg-accent/30",
-                              )}
-                            >
-                              {note}
-                            </span>
-                          ))
+                <>
+                  {selected.size === 0 ? (
+                    <p className="mt-4 text-sm text-muted-foreground italic">
+                      Showing every fragrance — pick notes on the left to
+                      narrow the list.
+                    </p>
+                  ) : null}
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    {results.map((fragrance) => (
+                      <Link
+                        key={fragrance._id}
+                        to={`/formulas/${fragrance._id}`}
+                        className={cn(
+                          "paper-sheet group flex flex-col rounded-lg border border-border/70 p-4 transition-colors hover:border-primary/50",
+                          selected.size > 0 &&
+                            matchMode === "all" &&
+                            fragrance.hits.length === selected.size &&
+                            "border-primary/40",
                         )}
-                      </div>
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h2 className="font-display text-xl leading-tight font-semibold">
+                            {fragrance.name}
+                          </h2>
+                          <span className="label-caps shrink-0 pt-1">
+                            {fragrance.status}
+                          </span>
+                        </div>
+                        <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                          v{fragrance.versionNumber} ·{" "}
+                          {fragrance.ingredientCount} materials
+                        </p>
 
-                      <div className="mt-4 flex items-end justify-between gap-2 border-t border-border/60 pt-3">
-                        <div>
-                          <p
-                            className={cn(
-                              "font-mono text-sm font-bold",
-                              material.isLow && "text-seal",
-                            )}
-                          >
-                            {formatGrams(material.remainingGrams)} g left
-                          </p>
-                          <p className="font-mono text-[11px] text-muted-foreground">
-                            ${material.pricePerGram.toFixed(4)}/g
-                          </p>
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {selected.size === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">
+                              pick notes to see what it contains
+                            </span>
+                          ) : fragrance.hits.length === 0 ? (
+                            <span className="text-xs text-muted-foreground italic">
+                              contains none of your notes
+                            </span>
+                          ) : (
+                            <>
+                              {fragrance.hits.map((note) => (
+                                <span
+                                  key={note}
+                                  className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-[10px] text-primary"
+                                >
+                                  {note}
+                                </span>
+                              ))}
+                              <span className="label-caps self-center pl-1">
+                                {fragrance.hits.length} of {selected.size}
+                              </span>
+                            </>
+                          )}
                         </div>
-                        {material.isLow ? (
-                          <span className="stamp text-seal">Low</span>
-                        ) : null}
-                      </div>
-                    </article>
-                  ))}
-                        </div>
-                      </section>
-                    ),
-                  )}
-                </div>
+
+                        <span className="label-caps mt-auto pt-4 text-muted-foreground transition-colors group-hover:text-foreground">
+                          Open the sheet →
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </>
               )}
             </section>
           </div>

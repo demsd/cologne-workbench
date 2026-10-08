@@ -58,7 +58,6 @@ import {
   Plus,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -109,9 +108,9 @@ export default function Inventory() {
     price: "",
     vendor: "",
     threshold: "56.7",
+    // Notes stay data-only (CSV import/export); the dialog no longer edits them.
     notes: [] as string[],
   });
-  const [noteDraft, setNoteDraft] = useState("");
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
   // ——— Delete ———
@@ -172,21 +171,8 @@ export default function Inventory() {
       threshold: "56.7",
       notes: [],
     });
-    setNoteDraft("");
     setFormErrors([]);
     setDialogOpen(true);
-  }
-
-  function addNoteDraft() {
-    const note = noteDraft.trim();
-    if (!note) return;
-    setForm((f) =>
-      f.notes.length >= 20 ||
-      f.notes.some((n) => n.toLowerCase() === note.toLowerCase())
-        ? f
-        : { ...f, notes: [...f.notes, note] },
-    );
-    setNoteDraft("");
   }
 
   function openEdit(material: ShelfMaterial) {
@@ -202,7 +188,6 @@ export default function Inventory() {
       threshold: String(material.lowStockThreshold ?? 56.7),
       notes: material.notes ? [...material.notes] : [],
     });
-    setNoteDraft("");
     setFormErrors([]);
     setDialogOpen(true);
   }
@@ -764,50 +749,6 @@ export default function Inventory() {
                   placeholder="e.g. Hermitage"
                   className="h-10"
                 />
-              </Field>
-            </div>
-            <div className="sm:col-span-2">
-              <Field label="Notes (facets for the note picker)">
-                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background/60 px-2 py-1.5">
-                  {form.notes.map((note) => (
-                    <span
-                      key={note}
-                      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-accent/40 px-2 py-0.5 font-mono text-xs"
-                    >
-                      {note}
-                      <button
-                        type="button"
-                        aria-label={`Remove ${note}`}
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            notes: f.notes.filter((n) => n !== note),
-                          }))
-                        }
-                        className="text-muted-foreground transition-colors hover:text-destructive"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <Input
-                    value={noteDraft}
-                    onChange={(event) => setNoteDraft(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addNoteDraft();
-                      }
-                    }}
-                    placeholder={
-                      form.notes.length === 0
-                        ? "rose, citrus, smoky…"
-                        : "add another…"
-                    }
-                    aria-label="Add a note"
-                    className="h-6 min-w-24 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-                  />
-                </div>
               </Field>
             </div>
           </div>

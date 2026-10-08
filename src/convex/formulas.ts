@@ -282,3 +282,52 @@ export const create = mutation({
     return formulaId;
   },
 });
+
+/**
+ * The note picker's fragrances list: the latest version of every formula
+ * (one card per fragrance, by name), together with the raw materials it
+ * contains so the picker can match selected notes on the client.
+ */
+export const library = query({
+  args: {},
+  handler: async (ctx) => {
+    const formulas = await ctx.db.query("formulas").order("desc").collect();
+
+    // Fetch the ingredient list of every formula (per-formula index).
+    const itemsByFormula = new Map<string, Doc<"formulaItems">[]>();
+    for (const formula of formulas) {
+      const formulaItems = await ctx.db
+        .query("formulaItems")
+        .withIndex("by_formula", (q) => q.eq("formulaId", formula._id))
+        .collect();
+      itemsByFormula.set(formula._id, formulaItems);
+    }
+
+    // Latest version per fragrance name.
+    const latest = new Map<string, (typeof formulas)[number]>();
+    for (const formula of formulas) {
+      const current = latest.get(formula.name);
+      if (!current || formula._creationTime > current._creationTime) {
+        latest.set(formula.name, formula);
+      }
+    }
+
+    return [...latest.values()].map((formula) => {
+      const formulaItems = itemsByFormula.get(formula._id) ?? [];
+      return {
+        _id: formula._id,
+        name: formula.name,
+        versionNumber: formula.versionNumber,
+        status: formula.status,
+        parentId: formula.parentId,
+        ingredientCount: formulaItems.length,
+        materialIds: [
+          ...new Set(
+            formulaItems.map((item) => item.rawMaterialId)
+          ),
+        ],
+        _creationTime: formula._creationTime,
+      };
+    });
+  },
+});

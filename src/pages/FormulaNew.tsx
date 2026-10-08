@@ -14,12 +14,23 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStarterMaterials } from "@/hooks/use-starter-materials";
@@ -34,7 +45,7 @@ import {
 } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowLeft, Check, Plus, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronsUpDown, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -100,6 +111,7 @@ export default function FormulaNew() {
   // — Composition —
   const [items, setItems] = useState<DraftItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [materialOpen, setMaterialOpen] = useState(false);
   const [composerGroup, setComposerGroup] = useState<OlfactiveGroup>("Top");
   const [composerGrams, setComposerGrams] = useState("");
   const [composerError, setComposerError] = useState<string | null>(null);
@@ -200,6 +212,11 @@ export default function FormulaNew() {
   const presentGroups = sortGroups(items.map((item) => item.group));
   const targetGrams = parseFloat(batchWeight) || 0;
   const deltaGrams = totalGrams - targetGrams;
+
+  /** The material the combobox is currently showing. */
+  const selectedMaterial = materials?.find(
+    (material) => material._id === selectedId,
+  );
 
   function handleMaterialChange(id: string) {
     setSelectedId(id);
@@ -589,45 +606,84 @@ export default function FormulaNew() {
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.9fr)_6.5rem_auto]">
                   <div className="space-y-1.5">
                     <span className="label-caps">Material</span>
-                    <Select
-                      value={selectedId}
-                      onValueChange={handleMaterialChange}
-                    >
-                      <SelectTrigger className="h-10 w-full">
-                        <SelectValue
-                          placeholder={
-                            materials === undefined
+                    <Popover open={materialOpen} onOpenChange={setMaterialOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={materialOpen}
+                          className="h-10 w-full justify-between gap-2 font-normal"
+                        >
+                          <span className="truncate">
+                            {materials === undefined
                               ? "Stocking the shelf…"
-                              : "Choose from the shelf…"
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-72">
-                        {sortGroups(
-                          shelf.map((material) => material.olfactiveGroup),
-                        ).map((group) => {
-                          const inGroup = shelf.filter(
-                            (material) => material.olfactiveGroup === group,
-                          );
-                          if (inGroup.length === 0) return null;
-                          return (
-                            <SelectGroup key={group}>
-                              <SelectLabel className="label-caps">
-                                {GROUP_HEADINGS[group]}
-                              </SelectLabel>
-                              {inGroup.map((material) => (
-                                <SelectItem
-                                  key={material._id}
-                                  value={material._id}
+                              : selectedMaterial
+                                ? selectedMaterial.name
+                                : "Search the shelf…"}
+                          </span>
+                          <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        align="start"
+                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                      >
+                        <Command>
+                          <CommandInput placeholder="Type to search materials…" />
+                          <CommandList>
+                            <CommandEmpty>
+                              {materials === undefined
+                                ? "Loading the shelf…"
+                                : "No material found."}
+                            </CommandEmpty>
+                            {sortGroups(
+                              shelf.map(
+                                (material) => material.olfactiveGroup,
+                              ),
+                            ).map((group) => {
+                              const inGroup = shelf.filter(
+                                (material) =>
+                                  material.olfactiveGroup === group,
+                              );
+                              if (inGroup.length === 0) return null;
+                              return (
+                                <CommandGroup
+                                  key={group}
+                                  heading={GROUP_HEADINGS[group]}
                                 >
-                                  {material.name}
-                                </SelectItem>
-                              ))}
-                            </SelectGroup>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
+                                  {inGroup.map((material) => (
+                                    <CommandItem
+                                      key={material._id}
+                                      value={material.name}
+                                      onSelect={() => {
+                                        handleMaterialChange(material._id);
+                                        setMaterialOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "size-4",
+                                          selectedId === material._id
+                                            ? "opacity-100"
+                                            : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="truncate">
+                                        {material.name}
+                                      </span>
+                                      <span className="ml-auto pl-2 font-mono text-[10px] text-muted-foreground">
+                                        {material.olfactiveGroup}
+                                      </span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              );
+                            })}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
 
                   <div className="space-y-1.5">
