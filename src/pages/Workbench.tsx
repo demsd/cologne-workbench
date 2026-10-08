@@ -13,7 +13,14 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Boxes, Filter, GitCompare, Plus, ScrollText } from "lucide-react";
+import {
+  Boxes,
+  Filter,
+  GitCompare,
+  LayoutDashboard,
+  Plus,
+  ScrollText,
+} from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
@@ -64,9 +71,17 @@ export default function Workbench() {
         <header>
           <div className="flex items-center justify-between gap-4 border-b border-border/70 py-4">
             <p className="label-caps">Cologne Workbench · Bench No. 1</p>
-            <p className="label-caps hidden sm:block">
-              Single-perfumer edition · Version 1
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="label-caps hidden sm:block">
+                Single-perfumer edition · Version 1
+              </p>
+              <Button asChild size="sm" variant="ghost" className="gap-1.5">
+                <Link to="/dashboard">
+                  <LayoutDashboard className="size-3.5" />
+                  Dashboard
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <motion.div

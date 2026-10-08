@@ -141,7 +141,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/log" element={<ProductionLog />} />
               <Route
                 path="/auth"
-                element={<AuthPage redirectAfterAuth="/" />}
+                element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
               <Route
                 path="/dashboard"
