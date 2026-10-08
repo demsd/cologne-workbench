@@ -1,11 +1,11 @@
 {
-  "name": "freebuff.com application",
-  "short_name": "freebuff.com",
-  "description": "freebuff.com application",
+  "name": "Cologne Workbench",
+  "short_name": "Workbench",
+  "description": "Cologne Workbench — a single-perfumer formulation ledger: file formulas, weigh by hand, keep the shelf.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "background_color": "#f2e9cd",
+  "theme_color": "#f2e9cd",
   "icons": [
     {
       "src": "/logo.svg",
