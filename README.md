@@ -1,5 +1,7 @@
 ## Overview
 
+Created this as an alternative to TapputiLab.com to run locally. It currently does not include everything [IFRA, etc], but I did add a feature to allows for selection of notes [top, middle and base] that returns a list of formulas that use those notes. 
+
 This project uses the following tech stack:
 - Vite
 - Typescript
