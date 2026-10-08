@@ -4,7 +4,7 @@ Created this as an alternative to TapputiLab.com to run locally. It currently do
 
 * CSV importation of inventory including vendor, total grams, remaining grams, total cost of product in grams and price per gram
 * A Note Picker to allow for selection of notes [top, middle and base] that returns a list of formulas that use those notes
-* Cackup & export feature to back up everything [as a json] including inventory [the shelf], formulas, batch records, etc, as well as downloading the vendor price list
+* Backup & export feature to back up everything [as a json] including inventory [the shelf], formulas, batch records, etc, as well as downloading the vendor price list
 
 This project uses the following tech stack:
 - Vite
