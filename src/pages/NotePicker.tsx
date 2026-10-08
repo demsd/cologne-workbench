@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStarterMaterials } from "@/hooks/use-starter-materials";
-import { GROUP_ORDER, formatGrams } from "@/lib/formula-math";
+import { GROUP_HEADINGS, GROUP_ORDER, formatGrams } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ArrowLeft, X } from "lucide-react";
@@ -50,7 +50,11 @@ function Chip({
 export default function NotePicker() {
   const materials = useStarterMaterials();
 
-  const [groupFilter, setGroupFilter] = useState<Set<string>>(new Set());
+  /** The classic pyramid is preselected: Top, Middle, Base. */
+  const defaultGroups = ["Top", "Middle", "Base"];
+  const [groupFilter, setGroupFilter] = useState<Set<string>>(
+    () => new Set(defaultGroups),
+  );
   const [noteFilter, setNoteFilter] = useState<Set<string>>(new Set());
   const [matchMode, setMatchMode] = useState<"any" | "all">("any");
   const [search, setSearch] = useState("");
@@ -70,7 +74,7 @@ export default function NotePicker() {
     );
   }, [shelf]);
 
-  const results = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return shelf.filter((material) => {
       if (groupFilter.size > 0 && !groupFilter.has(material.olfactiveGroup)) {
@@ -95,8 +99,22 @@ export default function NotePicker() {
     });
   }, [shelf, groupFilter, noteFilter, matchMode, search]);
 
+  /** One list per selected group — the fragrances that contain each. */
+  const sections = useMemo(
+    () =>
+      GROUP_ORDER.filter((group) => groupFilter.has(group)).map((group) => ({
+        group,
+        items: filtered.filter((material) => material.olfactiveGroup === group),
+      })),
+    [filtered, groupFilter],
+  );
+  const visibleCount = sections.reduce((sum, s) => sum + s.items.length, 0);
+
+  const groupsChanged =
+    defaultGroups.some((group) => !groupFilter.has(group)) ||
+    [...groupFilter].some((group) => !defaultGroups.includes(group));
   const filtersOn =
-    groupFilter.size > 0 || noteFilter.size > 0 || search.trim().length > 0;
+    groupsChanged || noteFilter.size > 0 || search.trim().length > 0;
 
   function toggleGroup(group: string) {
     setGroupFilter((prev) => {
@@ -117,7 +135,7 @@ export default function NotePicker() {
   }
 
   function clearFilters() {
-    setGroupFilter(new Set());
+    setGroupFilter(new Set(defaultGroups));
     setNoteFilter(new Set());
     setSearch("");
   }
@@ -302,11 +320,21 @@ export default function NotePicker() {
                   className="h-10 w-full max-w-xs"
                 />
                 <span className="label-caps ml-auto">
-                  {results.length} of {shelf.length} fit
+                  {visibleCount} of {shelf.length} fit
                 </span>
               </div>
 
-              {results.length === 0 ? (
+              {groupFilter.size === 0 ? (
+                <div className="paper-sheet mt-4 rounded-lg border border-border/70 px-6 py-14 text-center">
+                  <p className="font-display text-xl font-semibold">
+                    Pick at least one group.
+                  </p>
+                  <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground italic">
+                    Tick Top, Middle and Base — and Fixative or Alcohol when
+                    the work calls for them.
+                  </p>
+                </div>
+              ) : visibleCount === 0 ? (
                 <div className="paper-sheet mt-4 rounded-lg border border-border/70 px-6 py-14 text-center">
                   <p className="font-display text-xl font-semibold">
                     Nothing matches.
@@ -325,8 +353,21 @@ export default function NotePicker() {
                   </Button>
                 </div>
               ) : (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {results.map((material) => (
+                <div className="mt-6 space-y-8">
+                  {sections.map((section) =>
+                    section.items.length === 0 ? null : (
+                      <section key={section.group}>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1.5">
+                          <h2 className="font-display text-2xl font-semibold">
+                            {GROUP_HEADINGS[section.group]}
+                          </h2>
+                          <span className="label-caps">
+                            {section.items.length} fragrance
+                            {section.items.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {section.items.map((material) => (
                     <article
                       key={material._id}
                       className={cn(
@@ -388,6 +429,10 @@ export default function NotePicker() {
                       </div>
                     </article>
                   ))}
+                        </div>
+                      </section>
+                    ),
+                  )}
                 </div>
               )}
             </section>
