@@ -100,6 +100,11 @@ export default function FormulaPrint() {
   const pouredFromVersion =
     batches?.filter((batch) => batch.formulaId === detail._id) ?? [];
 
+  /** Two frames: let the route's first paint land before the dialog snapshots it. */
+  function handlePrint() {
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
   const particulars: { label: string; value: string }[] = [
     { label: "Version", value: detail.versionNumber },
     { label: "Status", value: detail.status },
@@ -136,21 +141,35 @@ export default function FormulaPrint() {
       <style>{`
         @media print {
           @page { size: A4; margin: 15mm; }
-          body { background: #fff !important; }
+          html, body {
+            background: #fff !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          /* The aged-paper grain and vignette are fixed, full-page screen
+             layers — body::before composites with mix-blend-mode: multiply,
+             which Chrome's print compositor can flatten into a blank sheet. */
+          body::before, body::after {
+            content: none !important;
+            display: none !important;
+          }
+          /* Belt and braces: no inline-styled fixed overlay (the editor
+             toolbar mounts one) may cover the sheet in print. */
+          [style*="position: fixed"] { display: none !important; }
         }
       `}</style>
 
       <div className="mx-auto w-full max-w-4xl px-5 pb-20 sm:px-8">
         <div className="flex items-center justify-between border-b border-border/70 py-4 print:hidden">
           {backLink}
-          <Button className="gap-1.5" onClick={() => window.print()}>
+          <Button className="gap-1.5" onClick={handlePrint}>
             <Printer className="size-4" />
             Print sheet
           </Button>
         </div>
 
         {/* ——— The sheet: fixed paper, fixed ink ——— */}
-        <article className="mx-auto mt-8 max-w-[210mm] bg-white p-8 text-zinc-900 shadow-xl sm:p-12 print:mt-0 print:shadow-none print:max-w-none">
+        <article className="print:relative print:z-[1000000] mx-auto mt-8 max-w-[210mm] bg-white p-8 text-zinc-900 shadow-xl sm:p-12 print:mt-0 print:shadow-none print:max-w-none">
           <header className={`flex flex-wrap items-baseline justify-between gap-2 border-b-2 ${rule} pb-3`}>
             <p className={cap}>Cologne Workbench · Formula sheet</p>
             <p className={cap}>Sheet 1 of 1</p>
