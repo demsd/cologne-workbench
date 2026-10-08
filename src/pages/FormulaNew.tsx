@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import {
   GROUP_HEADINGS,
@@ -28,13 +29,14 @@ import {
   computePercentages,
   formatGrams,
   formatPct,
+  nextVersionNumber,
   sortGroups,
 } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Check, Plus, X } from "lucide-react";
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 type DraftItem = {
@@ -68,10 +70,18 @@ function Field({
 }
 
 export default function FormulaNew() {
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
   const materials = useStarterMaterials();
   const createFormula = useMutation(api.formulas.create);
+  /** The version being revised (edit mode only). */
+  const source = useQuery(
+    api.formulas.get,
+    id ? { id: id as Id<"formulas"> } : "skip",
+  );
   const navigate = useNavigate();
   const nextKey = useRef(1);
+  const prefilled = useRef(false);
 
   // — Particulars —
   const [name, setName] = useState("");
@@ -110,6 +120,78 @@ export default function FormulaNew() {
     () => amounts.reduce((sum, g) => sum + g, 0),
     [amounts],
   );
+
+  /** Edit mode: pull the source version's particulars into the form once. */
+  useEffect(() => {
+    if (!source || prefilled.current) return;
+    prefilled.current = true;
+    setName(source.name);
+    setStatus(source.status);
+    setVersionNumber(nextVersionNumber(source.versionNumber));
+    setBatchWeight(String(source.batchWeightGrams));
+    setConcentration(String(source.concentrationPct));
+    setBottleVolume(
+      source.bottleVolumeMl === undefined ? "" : String(source.bottleVolumeMl),
+    );
+    setMinDrop(String(source.minDropGrams));
+    setItems(
+      source.items.map((item) => ({
+        key: nextKey.current++,
+        rawMaterialId: item.rawMaterialId,
+        materialName: item.materialName,
+        group: item.olfactiveGroup,
+        grams: String(item.amountGrams),
+      })),
+    );
+  }, [source]);
+
+  // — Edit-mode loading & missing states (all hooks run first) —
+  if (id && source === undefined) {
+    return (
+      <main className="min-h-screen">
+        <div className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-8">
+          <div className="flex items-center justify-between border-b border-border/70 py-4">
+            <Link
+              to="/"
+              className="label-caps inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
+            >
+              <ArrowLeft className="size-3.5" />
+              The Ledger
+            </Link>
+            <p className="label-caps hidden sm:block">
+              Fetching the version…
+            </p>
+          </div>
+          <div className="mt-10 space-y-4">
+            <Skeleton className="h-10 w-1/2 rounded-md" />
+            <Skeleton className="h-5 w-1/3 rounded-md" />
+            <Skeleton className="h-72 w-full rounded-lg" />
+          </div>
+        </div>
+      </main>
+    );
+  }
+  if (id && source === null) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <div className="paper-sheet max-w-md rounded-lg border border-border/70 px-8 py-12 text-center">
+          <p className="font-display text-2xl font-semibold">
+            No such version.
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground italic">
+            This page of the ledger is missing — it may have been filed
+            elsewhere.
+          </p>
+          <Button asChild className="mt-6 gap-1.5">
+            <Link to="/">
+              <ArrowLeft className="size-4" />
+              Back to the ledger
+            </Link>
+          </Button>
+        </div>
+      </main>
+    );
+  }
 
   const rows = items.map((item, index) => ({
     ...item,
@@ -246,14 +328,17 @@ export default function FormulaNew() {
           ? parseFloat(bottleVolume)
           : undefined,
         minDropGrams: minDropNum,
+        parentId: source?._id,
         items: items.map((item) => ({
           rawMaterialId: item.rawMaterialId,
           olfactiveGroup: item.group,
           amountGrams: parseFloat(item.grams),
         })),
       });
-      toast.success("Filed in the ledger", {
-        description: `${name} · ${versionNumber} · ${items.length} ingredient${items.length === 1 ? "" : "s"}`,
+      toast.success(isEdit ? "New version filed" : "Filed in the ledger", {
+        description: isEdit
+          ? `${name} · ${versionNumber} · revised from ${source?.versionNumber}`
+          : `${name} · ${versionNumber} · ${items.length} ingredient${items.length === 1 ? "" : "s"}`,
       });
       navigate(`/formulas/${id}`);
     } catch (error) {
@@ -275,13 +360,15 @@ export default function FormulaNew() {
       <div className="mx-auto w-full max-w-6xl px-5 pb-20 sm:px-8">
         <div className="flex items-center justify-between border-b border-border/70 py-4">
           <Link
-            to="/"
+            to={isEdit && id ? `/formulas/${id}` : "/"}
             className="label-caps inline-flex items-center gap-1.5 transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
-            The Ledger
+            {isEdit && source ? `${source.versionNumber} sheet` : "The Ledger"}
           </Link>
-          <p className="label-caps hidden sm:block">New entry · Draft</p>
+          <p className="label-caps hidden sm:block">
+            {isEdit ? "Revision · new version node" : "New entry · Draft"}
+          </p>
         </div>
 
         <header className="mt-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -289,20 +376,39 @@ export default function FormulaNew() {
             <div className="ornament max-w-52">
               <span />
             </div>
-            <p className="label-caps mt-5">Formulation sheet</p>
+            <p className="label-caps mt-5">
+              {isEdit ? "Revision sheet" : "Formulation sheet"}
+            </p>
             <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-              New Formula
+              {isEdit ? "New Version" : "New Formula"}
             </h1>
             <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground italic">
-              Name the work, set the targets, then weigh each material into the
-              ledger. Percentages settle themselves to exactly 100.
+              {isEdit && source ? (
+                <>
+                  Revising{" "}
+                  <span className="font-mono not-italic">
+                    {source.versionNumber}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-medium not-italic">
+                    “{source.name}”
+                  </span>{" "}
+                  — the revision is filed as its child; the original stays
+                  untouched.
+                </>
+              ) : (
+                <>
+                  Name the work, set the targets, then weigh each material into
+                  the ledger. Percentages settle themselves to exactly 100.
+                </>
+              )}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
             <Button
               type="button"
               variant="ghost"
-              onClick={() => navigate("/")}
+              onClick={() => navigate(isEdit && id ? `/formulas/${id}` : "/")}
               className="gap-1.5"
             >
               <X className="size-4" />
@@ -315,7 +421,7 @@ export default function FormulaNew() {
               className="gap-1.5"
             >
               <Check className="size-4" />
-              {saving ? "Filing…" : "File this formula"}
+              {saving ? "Filing…" : isEdit ? "File as new version" : "File this formula"}
             </Button>
           </div>
         </header>
@@ -383,7 +489,11 @@ export default function FormulaNew() {
                 </div>
                 <Field
                   label="Version description"
-                  hint="What this revision is about — it prints on the sheet."
+                  hint={
+                    isEdit
+                      ? "What changed in this revision — it prints on the sheet."
+                      : "What this version is about — it prints on the sheet."
+                  }
                 >
                   <Textarea
                     value={versionDescription}
@@ -391,7 +501,11 @@ export default function FormulaNew() {
                       setVersionDescription(event.target.value)
                     }
                     rows={2}
-                    placeholder="First composition — rose forward, softer drydown."
+                    placeholder={
+                      isEdit
+                        ? "Softened the drydown; raised sandalwood by 1 g."
+                        : "First composition — rose forward, softer drydown."
+                    }
                     className="resize-none"
                   />
                 </Field>
@@ -715,7 +829,11 @@ export default function FormulaNew() {
                 className="w-full gap-1.5 sm:w-auto"
               >
                 <Check className="size-4" />
-                {saving ? "Filing…" : "File this formula"}
+                {saving
+                  ? "Filing…"
+                  : isEdit
+                    ? "File as new version"
+                    : "File this formula"}
               </Button>
             </CardFooter>
           </Card>

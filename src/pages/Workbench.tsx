@@ -13,7 +13,7 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Plus } from "lucide-react";
+import { GitCompare, Plus } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
@@ -138,12 +138,22 @@ export default function Workbench() {
                 Formula Ledger
               </h2>
             </div>
-            <Button asChild size="sm" className="gap-1.5">
-              <Link to="/formulas/new">
-                <Plus className="size-3.5" />
-                New formula
-              </Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              {ledger.length >= 2 ? (
+                <Button asChild size="sm" variant="outline" className="gap-1.5">
+                  <Link to="/compare">
+                    <GitCompare className="size-3.5" />
+                    Compare versions
+                  </Link>
+                </Button>
+              ) : null}
+              <Button asChild size="sm" className="gap-1.5">
+                <Link to="/formulas/new">
+                  <Plus className="size-3.5" />
+                  New formula
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {loading ? (

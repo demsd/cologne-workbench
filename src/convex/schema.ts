@@ -92,8 +92,9 @@ const schema = defineSchema(
       ingredientCount: v.number(),
       /** Sum of all ingredient grams actually recorded in this version. */
       totalGrams: v.number(),
+      /** The version this one was revised from (parent-child versioning). */
       parentId: v.optional(v.id("formulas")),
-    }),
+    }).index("by_parent", ["parentId"]),
 
     // -----------------------------------------------------------------------
     // 3. Formula items — one row per ingredient of a formula version.

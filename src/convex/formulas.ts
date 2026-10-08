@@ -4,7 +4,7 @@ import {
   formulaStatusValidator,
   olfactiveGroupValidator,
 } from "./schema";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   GRAM_DECIMALS,
   PCT_DECIMALS,
@@ -51,6 +51,54 @@ export const get = query({
 });
 
 /**
+ * The whole version family this formula belongs to: walks up to the root of
+ * the parent chain, then collects every descendant (breadth-first, so
+ * branches survive), returned oldest first.
+ */
+export const lineage = query({
+  args: { id: v.id("formulas") },
+  handler: async (ctx, { id }) => {
+    // — Walk up to the root, cycle-safe —
+    let rootId: Id<"formulas"> = id;
+    const guard = new Set<string>([id]);
+    for (let hop = 0; hop < 100; hop += 1) {
+      const node = await ctx.db.get(rootId);
+      if (!node || !node.parentId || guard.has(node.parentId)) break;
+      guard.add(node.parentId);
+      rootId = node.parentId;
+    }
+
+    // — Breadth-first over descendants —
+    const chain: Doc<"formulas">[] = [];
+    let frontier: Id<"formulas">[] = [rootId];
+    while (frontier.length > 0) {
+      const next: Id<"formulas">[] = [];
+      for (const formulaId of frontier) {
+        const formula = await ctx.db.get(formulaId);
+        if (!formula) continue;
+        chain.push(formula);
+        const children = await ctx.db
+          .query("formulas")
+          .withIndex("by_parent", (q) => q.eq("parentId", formulaId))
+          .collect();
+        for (const child of children) next.push(child._id);
+      }
+      frontier = next;
+    }
+
+    chain.sort((a, b) => a._creationTime - b._creationTime);
+    return chain.map((formula) => ({
+      _id: formula._id,
+      versionNumber: formula.versionNumber,
+      status: formula.status,
+      versionDescription: formula.versionDescription,
+      parentId: formula.parentId,
+      _creationTime: formula._creationTime,
+    }));
+  },
+});
+
+/**
  * File a formula: validates the particulars, weighs every ingredient to 4dp,
  * settles percentages to exactly 100.00, then writes the formula and its
  * ingredient rows in one transaction.
@@ -65,6 +113,8 @@ export const create = mutation({
     concentrationPct: v.number(),
     bottleVolumeMl: v.optional(v.number()),
     minDropGrams: v.number(),
+    /** The version this entry revises — makes it a child node (v1 → v1.1). */
+    parentId: v.optional(v.id("formulas")),
     items: v.array(ingredientInput),
   },
   handler: async (ctx, args) => {
@@ -87,6 +137,10 @@ export const create = mutation({
     }
     if (args.items.length === 0) {
       throw new Error("Add at least one ingredient before filing.");
+    }
+    if (args.parentId) {
+      const parent = await ctx.db.get(args.parentId);
+      if (!parent) throw new Error("The version being revised is missing.");
     }
 
     // Validate materials and weigh them to a fixed precision.
@@ -141,6 +195,7 @@ export const create = mutation({
       minDropGrams: roundTo(args.minDropGrams, GRAM_DECIMALS),
       ingredientCount: weighed.length,
       totalGrams,
+      parentId: args.parentId,
     });
 
     for (const [index, item] of weighed.entries()) {

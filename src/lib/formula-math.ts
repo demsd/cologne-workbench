@@ -36,6 +36,20 @@ export function computePercentages(amounts: number[]): number[] {
   return raw;
 }
 
+/**
+ * The next revision label in a lineage, following the PRD's v1.0 → v1.1 idea:
+ * V1 → V1.1, V1.1 → V1.2, v3.2 → v3.3. Unrecognised labels get “.1” appended.
+ */
+export function nextVersionNumber(current: string): string {
+  const trimmed = current.trim();
+  const match = trimmed.match(/^(v?)(\d+)(?:\.(\d+))?$/i);
+  if (!match) return `${trimmed}.1`;
+  const [, prefix, major, minor] = match;
+  return minor === undefined
+    ? `${prefix}${major}.1`
+    : `${prefix}${major}.${Number(minor) + 1}`;
+}
+
 /** Reading order of the olfactive subsections on every formula sheet. */
 export const GROUP_ORDER: OlfactiveGroup[] = [
   "Top",

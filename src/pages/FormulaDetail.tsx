@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronRight, GitCompare, PenLine } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "convex/react";
 
@@ -37,6 +37,10 @@ export default function FormulaDetail() {
   const { id } = useParams<{ id: string }>();
   const detail = useQuery(
     api.formulas.get,
+    id ? { id: id as Id<"formulas"> } : "skip",
+  );
+  const lineage = useQuery(
+    api.formulas.lineage,
     id ? { id: id as Id<"formulas"> } : "skip",
   );
 
@@ -169,7 +173,84 @@ export default function FormulaDetail() {
                 {detail.versionDescription}
               </p>
             ) : null}
+
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Button asChild className="gap-1.5">
+                <Link to={`/formulas/${detail._id}/edit`}>
+                  <PenLine className="size-4" />
+                  Revise as new version
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link
+                  to={`/compare?b=${detail._id}${
+                    detail.parentId ? `&a=${detail.parentId}` : ""
+                  }`}
+                >
+                  <GitCompare className="size-4" />
+                  {detail.parentVersion
+                    ? `Compare with ${detail.parentVersion}`
+                    : "Compare versions"}
+                </Link>
+              </Button>
+            </div>
           </header>
+
+          {/* ——— Version lineage ——— */}
+          {lineage && lineage.length > 0 ? (
+            <section className="mt-8">
+              <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-1.5">
+                <h2 className="label-caps">Version lineage</h2>
+                <span className="label-caps">
+                  {lineage.length} node{lineage.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+                {lineage.map((node, index) => {
+                  const previous = lineage[index - 1];
+                  const isLinked =
+                    previous !== undefined && node.parentId === previous._id;
+                  const isCurrent = node._id === detail._id;
+                  return (
+                    <div key={node._id} className="flex items-center gap-1">
+                      {index > 0 ? (
+                        <ChevronRight
+                          aria-hidden
+                          className={cn(
+                            "size-4",
+                            isLinked ? "text-foreground/60" : "text-border",
+                          )}
+                        />
+                      ) : null}
+                      <Link
+                        to={`/formulas/${node._id}`}
+                        aria-current={isCurrent ? "page" : undefined}
+                        className={cn(
+                          "rounded-md border px-3 py-1.5 transition-colors",
+                          isCurrent
+                            ? "border-primary/70 bg-accent/50 ring-1 ring-primary/30"
+                            : "border-border/70 hover:bg-accent/40",
+                        )}
+                      >
+                        <span className="block font-mono text-sm">
+                          {node.versionNumber}
+                        </span>
+                        <span className="label-caps mt-0.5 block">
+                          {format(new Date(node._creationTime), "d MMM yyyy")}
+                          {node.status === "Production" ? " · prod" : ""}
+                        </span>
+                      </Link>
+                    </div>
+                  );
+                })}
+                {lineage.length === 1 ? (
+                  <span className="ml-1 text-xs text-muted-foreground italic">
+                    First version — no revisions yet.
+                  </span>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           {/* ——— Composition at a glance ——— */}
           <div className="paper-sheet mt-8 rounded-lg border border-border/70 p-5">
