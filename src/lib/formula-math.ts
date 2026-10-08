@@ -50,6 +50,61 @@ export function nextVersionNumber(current: string): string {
     : `${prefix}${major}.${Number(minor) + 1}`;
 }
 
+/**
+ * The proportional rescaling engine behind the weighing bench: after the
+ * pour at `atIndex`, do the remaining materials need to follow the batch to
+ * its new scale? Returns null when the pour was on target (within
+ * SCALE_TOLERANCE) or nothing is left to weigh.
+ *
+ * Factors are always computed from the DESIGN targets, never from previously
+ * rescaled ones, so repeated rescales replace rather than compound.
+ */
+export const SCALE_TOLERANCE = 0.001; // 0.1% — closer counts as on target
+
+export type RescalePlanStep = {
+  materialName: string;
+  originalTarget: number;
+  currentTarget: number;
+  actual?: number;
+};
+
+export type RescalePlan = {
+  factor: number;
+  preview: { name: string; from: number; to: number }[];
+  /** Finished weight if the remaining targets are kept as they stand. */
+  projectedKeep: number;
+  /** Finished weight if the remaining targets follow the new scale. */
+  projectedScale: number;
+};
+
+export function planRescale(
+  steps: RescalePlanStep[],
+  atIndex: number,
+): RescalePlan | null {
+  const through = steps.slice(0, atIndex + 1);
+  const remaining = steps.slice(atIndex + 1);
+  const plannedSoFar = through.reduce((sum, s) => sum + s.originalTarget, 0);
+  const actualSoFar = through.reduce((sum, s) => sum + (s.actual ?? 0), 0);
+  const factor = plannedSoFar > 0 ? actualSoFar / plannedSoFar : 1;
+
+  if (remaining.length === 0) return null;
+  if (Math.abs(factor - 1) <= SCALE_TOLERANCE) return null;
+
+  return {
+    factor,
+    preview: remaining.map((s) => ({
+      name: s.materialName,
+      from: s.currentTarget,
+      to: roundTo(s.originalTarget * factor, 4),
+    })),
+    projectedKeep:
+      actualSoFar + remaining.reduce((sum, s) => sum + s.currentTarget, 0),
+    projectedScale:
+      actualSoFar +
+      remaining.reduce((sum, s) => sum + s.originalTarget * factor, 0),
+  };
+}
+
 /** Reading order of the olfactive subsections on every formula sheet. */
 export const GROUP_ORDER: OlfactiveGroup[] = [
   "Top",

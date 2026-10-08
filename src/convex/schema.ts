@@ -109,6 +109,32 @@ const schema = defineSchema(
       percentage: v.number(),
       sortOrder: v.number(),
     }).index("by_formula", ["formulaId"]),
+
+    // -----------------------------------------------------------------------
+    // 4. Production batches — immutable records of completed weighing
+    //    sessions (the Lab Journal history page reads these later).
+    // -----------------------------------------------------------------------
+    productionBatches: defineTable({
+      formulaId: v.id("formulas"),
+      batchNumber: v.string(),
+      plannedTotalWeightGrams: v.number(),
+      actualTotalWeightGrams: v.number(),
+      notes: v.optional(v.string()),
+    })
+      .index("by_formula", ["formulaId"])
+      .index("by_batch_number", ["batchNumber"]),
+
+    batchItems: defineTable({
+      batchId: v.id("productionBatches"),
+      rawMaterialId: v.id("rawMaterials"),
+      /** Snapshot of the material name at weighing time (traceability). */
+      materialName: v.string(),
+      olfactiveGroup: olfactiveGroupValidator,
+      /** The target the bench directed at pour time (may be rescaled). */
+      targetGrams: v.number(),
+      actualGrams: v.number(),
+      sortOrder: v.number(),
+    }).index("by_batch", ["batchId"]),
   },
   {
     schemaValidation: false,

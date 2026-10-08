@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { ArrowLeft, ChevronRight, GitCompare, PenLine } from "lucide-react";
+import { ArrowLeft, ChevronRight, GitCompare, PenLine, Scale } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "convex/react";
 
@@ -176,6 +176,12 @@ export default function FormulaDetail() {
 
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild className="gap-1.5">
+                <Link to={`/bench/${detail._id}`}>
+                  <Scale className="size-4" />
+                  Weigh at the bench
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
                 <Link to={`/formulas/${detail._id}/edit`}>
                   <PenLine className="size-4" />
                   Revise as new version
