@@ -216,3 +216,41 @@ export function toInventoryCsv(
   );
   return [header, ...body].join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Restock report — the reorder list, flat and vendor-sorted so a spreadsheet
+// keeps the grouping the report shows.
+// ---------------------------------------------------------------------------
+
+export type RestockCsvRow = {
+  vendor: string | undefined;
+  name: string;
+  category: MaterialCategory;
+  olfactiveGroup: OlfactiveGroup;
+  remainingGrams: number;
+  reorderAtGrams: number;
+  shortfallGrams: number;
+  price: number;
+  pricePerGram: number;
+};
+
+export function toRestockCsv(rows: RestockCsvRow[]): string {
+  const header =
+    "Vendor,Material,Category,Group,Remaining Grams,Reorder At Grams,Shortfall Grams,Price,Price per Gram";
+  const body = rows.map((row) =>
+    [
+      row.vendor ?? "",
+      row.name,
+      row.category,
+      row.olfactiveGroup,
+      row.remainingGrams,
+      row.reorderAtGrams,
+      row.shortfallGrams,
+      row.price,
+      row.pricePerGram,
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
+  return [header, ...body].join("\n");
+}

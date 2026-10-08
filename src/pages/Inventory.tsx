@@ -53,6 +53,7 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowLeft,
+  ClipboardList,
   Download,
   Pencil,
   Plus,
@@ -378,6 +379,12 @@ export default function Inventory() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link to="/restock">
+                  <ClipboardList className="size-4" />
+                  Restock report
+                </Link>
+              </Button>
               <Button
                 variant="outline"
                 className="gap-1.5"
