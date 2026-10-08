@@ -52,8 +52,9 @@ export const get = query({
 
 /**
  * Delete one formula version. Lineage survives: children are re-linked to the
- * deleted node's parent (or become roots). Versions that have been weighed
- * into an immutable batch are protected — traceability is never broken.
+ * deleted node's parent (or become roots). Weighing records made from this
+ * version are deleted with it, so no batch is ever left pointing at a formula
+ * that no longer exists — the UI confirms this before calling.
  */
 export const remove = mutation({
   args: { id: v.id("formulas") },
@@ -61,16 +62,18 @@ export const remove = mutation({
     const formula = await ctx.db.get(id);
     if (!formula) throw new Error("That version is missing.");
 
+    // Batches weighed from this version go with it (no orphaned records).
     const batches = await ctx.db
       .query("productionBatches")
       .withIndex("by_formula", (q) => q.eq("formulaId", id))
       .collect();
-    if (batches.length > 0) {
-      throw new Error(
-        `This version was weighed into batch ${batches
-          .map((batch) => batch.batchNumber)
-          .join(", ")} — records of the bench keep their formula, so it cannot be deleted.`,
-      );
+    for (const batch of batches) {
+      const batchItems = await ctx.db
+        .query("batchItems")
+        .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
+        .collect();
+      for (const item of batchItems) await ctx.db.delete(item._id);
+      await ctx.db.delete(batch._id);
     }
 
     // Re-link children before removing the node so the lineage never dangles.
@@ -93,6 +96,7 @@ export const remove = mutation({
       removedName: formula.name,
       removedVersion: formula.versionNumber,
       relinkedChildren: children.length,
+      removedBatches: batches.length,
       removedItems: items.length,
     };
   },

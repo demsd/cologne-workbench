@@ -73,15 +73,21 @@ export default function FormulaDetail() {
     setDeleting(true);
     try {
       const result = await removeFormula({ id: id as Id<"formulas"> });
-      toast.success(
-        `${result.removedName} ${result.removedVersion} deleted`,
-        {
-          description:
-            result.relinkedChildren > 0
-              ? `${result.relinkedChildren} revision${result.relinkedChildren === 1 ? "" : "s"} re-linked — the lineage survives.`
-              : "The ledger no longer lists it.",
-        },
-      );
+      const parts: string[] = [];
+      if (result.removedBatches > 0) {
+        parts.push(
+          `${result.removedBatches} batch record${result.removedBatches === 1 ? "" : "s"} deleted with it`,
+        );
+      }
+      if (result.relinkedChildren > 0) {
+        parts.push(
+          `${result.relinkedChildren} revision${result.relinkedChildren === 1 ? "" : "s"} re-linked — the lineage survives`,
+        );
+      }
+      if (parts.length === 0) parts.push("The ledger no longer lists it");
+      toast.success(`${result.removedName} ${result.removedVersion} deleted`, {
+        description: `${parts.join(" · ")}.`,
+      });
       navigate("/");
     } catch (error) {
       toast.error("This version cannot be deleted", {
@@ -441,7 +447,7 @@ export default function FormulaDetail() {
           <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-5">
             <p className="label-caps">
               Filed {format(new Date(detail._creationTime), "d MMMM yyyy")} ·
-              Tapputi Lab · Sheet 1 of 1
+              Cologne Workbench · Sheet 1 of 1
             </p>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -465,8 +471,8 @@ export default function FormulaDetail() {
                     {lineage && lineage.length > 1
                       ? " Revisions descending from it will re-link to the version before it, so the lineage survives."
                       : ""}{" "}
-                    Versions already weighed into a batch are protected, so
-                    traceability is never broken.
+                    Any weighing records made from this version are deleted
+                    with it.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

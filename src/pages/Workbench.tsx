@@ -64,7 +64,7 @@ export default function Workbench() {
         {/* ——— Masthead ——— */}
         <header>
           <div className="flex items-center justify-between gap-4 border-b border-border/70 py-4">
-            <p className="label-caps">Tapputi Lab · Bench No. 1</p>
+            <p className="label-caps">Cologne Workbench · Bench No. 1</p>
             <p className="label-caps hidden sm:block">
               Single-perfumer edition · Version 1
             </p>

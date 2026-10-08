@@ -77,10 +77,15 @@ export const create = mutation({
       GRAM_DECIMALS,
     );
 
-    // B-0001, B-0002, … — convex mutations are serialisable, so the count is
-    // race-free for a single bench.
+    // B-0001, B-0002, … — derived from the HIGHEST existing number, not the
+    // count, so deleting an older batch can never make two batches share a
+    // number. Convex mutations are serialisable, so this is race-free.
     const existing = await ctx.db.query("productionBatches").collect();
-    const batchNumber = `B-${String(existing.length + 1).padStart(4, "0")}`;
+    const highest = existing.reduce((max, batch) => {
+      const parsed = Number(batch.batchNumber.replace(/^B-/, ""));
+      return Number.isFinite(parsed) && parsed > max ? parsed : max;
+    }, 0);
+    const batchNumber = `B-${String(highest + 1).padStart(4, "0")}`;
 
     const batchId = await ctx.db.insert("productionBatches", {
       formulaId: args.formulaId,
