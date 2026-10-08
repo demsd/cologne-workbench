@@ -13,8 +13,8 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { ArrowDown, GitCompare, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { GitCompare, Plus } from "lucide-react";
+import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
 
@@ -58,21 +58,6 @@ export default function Workbench() {
   const productionCount =
     formulas?.filter((f) => f.status === "Production").length ?? 0;
 
-  const [ledgerFlash, setLedgerFlash] = useState(false);
-
-  /**
-   * Jump to the ledger — and make sure the click always has a visible
-   * result: the section is ringed for a moment, even when it is already
-   * on screen (scrolling to what you are looking at looks like nothing).
-   */
-  function openLedger() {
-    document
-      .getElementById("ledger")
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
-    setLedgerFlash(true);
-    window.setTimeout(() => setLedgerFlash(false), 1600);
-  }
-
   return (
     <main className="min-h-screen">
       <div className="mx-auto w-full max-w-6xl px-5 pb-16 sm:px-8">
@@ -110,15 +95,6 @@ export default function Workbench() {
                   New formula
                 </Link>
               </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="gap-1.5"
-                onClick={openLedger}
-              >
-                <ArrowDown className="size-4" />
-                Open the ledger
-              </Button>
             </div>
 
             <dl className="mx-auto mt-10 grid max-w-2xl grid-cols-3 divide-x divide-border/70 border-y border-border/70 py-5">
@@ -150,11 +126,7 @@ export default function Workbench() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
-          className={cn(
-            "mt-10 scroll-mt-6 transition-shadow duration-300 sm:mt-14",
-            ledgerFlash &&
-              "rounded-xl ring-2 ring-primary/50 ring-offset-4 ring-offset-background",
-          )}
+          className="mt-10 sm:mt-14"
         >
           <div className="rule-double flex items-end justify-between gap-4 pb-3">
             <div>
