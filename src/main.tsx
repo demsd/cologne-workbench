@@ -14,6 +14,7 @@ const FormulaNew = lazy(() => import("./pages/FormulaNew.tsx"));
 const FormulaDetail = lazy(() => import("./pages/FormulaDetail.tsx"));
 const Compare = lazy(() => import("./pages/Compare.tsx"));
 const Weighing = lazy(() => import("./pages/Weighing.tsx"));
+const Inventory = lazy(() => import("./pages/Inventory.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -133,6 +134,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/formulas/:id" element={<FormulaDetail />} />
               <Route path="/compare" element={<Compare />} />
               <Route path="/bench/:id" element={<Weighing />} />
+              <Route path="/inventory" element={<Inventory />} />
               <Route
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/" />}

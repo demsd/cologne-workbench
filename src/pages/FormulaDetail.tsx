@@ -179,6 +179,11 @@ export default function FormulaDetail() {
     { label: "Minimum drop", value: `${formatGrams(detail.minDropGrams)} g` },
     { label: "Ingredients", value: String(detail.ingredientCount) },
     { label: "Total weighed", value: `${formatGrams(detail.totalGrams)} g` },
+    { label: "Material cost", value: `$${detail.cost.totalCost.toFixed(2)}` },
+    {
+      label: "Cost per gram",
+      value: `$${detail.cost.costPerGram.toFixed(4)}/g`,
+    },
     {
       label: "Filed",
       value: format(new Date(detail._creationTime), "d MMM yyyy · HH:mm"),

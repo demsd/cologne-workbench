@@ -13,7 +13,7 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { GitCompare, Plus } from "lucide-react";
+import { Boxes, GitCompare, Plus } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
@@ -55,8 +55,7 @@ export default function Workbench() {
     }));
   }, [formulas]);
 
-  const productionCount =
-    formulas?.filter((f) => f.status === "Production").length ?? 0;
+  const lowStockCount = materials?.filter((m) => m.isLow).length ?? 0;
 
   return (
     <main className="min-h-screen">
@@ -105,15 +104,20 @@ export default function Workbench() {
                 </dd>
               </div>
               <div className="px-2">
-                <dt className="label-caps">On the shelf</dt>
+                <dt className="label-caps">Materials shelved</dt>
                 <dd className="mt-1.5 font-display text-3xl font-semibold">
                   {materials === undefined ? "—" : materials.length}
                 </dd>
               </div>
               <div className="px-2">
-                <dt className="label-caps">In production</dt>
-                <dd className="mt-1.5 font-display text-3xl font-semibold">
-                  {loading ? "—" : productionCount}
+                <dt className="label-caps">Low stock</dt>
+                <dd
+                  className={cn(
+                    "mt-1.5 font-display text-3xl font-semibold",
+                    lowStockCount > 0 && "text-seal",
+                  )}
+                >
+                  {materials === undefined ? "—" : lowStockCount}
                 </dd>
               </div>
             </dl>
@@ -136,6 +140,12 @@ export default function Workbench() {
               </h2>
             </div>
             <div className="flex items-center gap-2">
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/inventory">
+                  <Boxes className="size-3.5" />
+                  Inventory
+                </Link>
+              </Button>
               {ledger.length >= 2 ? (
                 <Button asChild size="sm" variant="outline" className="gap-1.5">
                   <Link to="/compare">

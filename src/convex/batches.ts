@@ -99,6 +99,20 @@ export const create = mutation({
       await ctx.db.insert("batchItems", { batchId, ...item, sortOrder: index });
     }
 
+    // — Update the shelf: each material's remaining grams drop by what was
+    // actually weighed (clamped at zero). Deleting a batch later does NOT
+    // restock — the pour physically happened; only the record goes away.
+    for (const item of weighed) {
+      const material = await ctx.db.get(item.rawMaterialId);
+      if (!material) continue;
+      await ctx.db.patch(item.rawMaterialId, {
+        remainingGrams: roundTo(
+          Math.max(0, material.remainingGrams - item.actualGrams),
+          GRAM_DECIMALS,
+        ),
+      });
+    }
+
     return { batchId, batchNumber, actualTotalWeightGrams: actualTotal };
   },
 });

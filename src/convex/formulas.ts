@@ -42,10 +42,26 @@ export const get = query({
 
     const parent = formula.parentId ? await ctx.db.get(formula.parentId) : null;
 
+    // — Live costing from current shelf prices (the PRD's working-solution
+    // pricing): what this version's materials cost today, per gram of formula.
+    let totalCost = 0;
+    for (const item of items) {
+      const material = await ctx.db.get(item.rawMaterialId);
+      if (!material || material.initialGrams <= 0) continue;
+      totalCost += item.amountGrams * (material.price / material.initialGrams);
+    }
+
     return {
       ...formula,
       items,
       parentVersion: parent ? parent.versionNumber : null,
+      cost: {
+        totalCost: roundTo(totalCost, PCT_DECIMALS),
+        costPerGram:
+          formula.totalGrams > 0
+            ? roundTo(totalCost / formula.totalGrams, 4)
+            : 0,
+      },
     };
   },
 });
