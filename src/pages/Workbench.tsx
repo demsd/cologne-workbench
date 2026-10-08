@@ -13,7 +13,7 @@ import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { Boxes, GitCompare, Plus } from "lucide-react";
+import { Boxes, Filter, GitCompare, Plus } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "convex/react";
@@ -140,6 +140,12 @@ export default function Workbench() {
               </h2>
             </div>
             <div className="flex items-center gap-2">
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/notes">
+                  <Filter className="size-3.5" />
+                  Note picker
+                </Link>
+              </Button>
               <Button asChild size="sm" variant="outline" className="gap-1.5">
                 <Link to="/inventory">
                   <Boxes className="size-3.5" />

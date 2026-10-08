@@ -51,9 +51,10 @@ export function csvEscape(value: string | number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Vendor price-list format (per the PRD):
+// Vendor price-list format (per the PRD, plus two optional columns):
 //   Fragrance Name, Group, Initial Grams, Remaining Grams, Price,
-//   Price per Gram (ignored — we compute it), Vendor [, Category]
+//   Price per Gram (ignored — we compute it), Vendor
+//   [, Category] [, Notes (semicolon-separated facets)]
 // ---------------------------------------------------------------------------
 
 export type InventoryCsvRow = {
@@ -64,6 +65,7 @@ export type InventoryCsvRow = {
   price: number;
   vendor: string | undefined;
   category: MaterialCategory;
+  notes: string[];
 };
 
 export type InventoryCsvPreview = {
@@ -158,6 +160,14 @@ export function parseInventoryCsv(text: string): InventoryCsvPreview {
       continue;
     }
 
+    // Optional 9th column: note facets, semicolon (or pipe) separated.
+    const notes = cells[8]
+      ? cells[8]
+          .split(/[;|]/)
+          .map((note) => note.trim())
+          .filter(Boolean)
+      : [];
+
     rows.push({
       name,
       olfactiveGroup: group,
@@ -166,6 +176,7 @@ export function parseInventoryCsv(text: string): InventoryCsvPreview {
       price,
       vendor: cells[6] || undefined,
       category: category ?? "Fragrance Oil",
+      notes,
     });
   }
 
@@ -183,10 +194,11 @@ export function toInventoryCsv(
     price: number;
     pricePerGram: number;
     vendor?: string;
+    notes?: string[];
   }[],
 ): string {
   const header =
-    "Fragrance Name,Group,Initial Grams,Remaining Grams,Price,Price per Gram,Vendor,Category";
+    "Fragrance Name,Group,Initial Grams,Remaining Grams,Price,Price per Gram,Vendor,Category,Notes";
   const body = materials.map((m) =>
     [
       m.name,
@@ -197,6 +209,7 @@ export function toInventoryCsv(
       m.pricePerGram,
       m.vendor ?? "",
       m.category,
+      (m.notes ?? []).join("; "),
     ]
       .map(csvEscape)
       .join(","),

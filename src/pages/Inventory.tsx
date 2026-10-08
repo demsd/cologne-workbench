@@ -5,6 +5,16 @@ import {
   type MaterialCategory,
   type OlfactiveGroup,
 } from "@/convex/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,7 +56,9 @@ import {
   Download,
   Pencil,
   Plus,
+  Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { Link } from "react-router";
@@ -77,6 +89,7 @@ export default function Inventory() {
   const materials = useStarterMaterials();
   const updateMaterial = useMutation(api.rawMaterials.update);
   const addMaterial = useMutation(api.rawMaterials.add);
+  const removeMaterial = useMutation(api.rawMaterials.remove);
   const bulkUpsert = useMutation(api.rawMaterials.bulkUpsert);
 
   // ——— Filters ———
@@ -96,8 +109,14 @@ export default function Inventory() {
     price: "",
     vendor: "",
     threshold: "56.7",
+    notes: [] as string[],
   });
+  const [noteDraft, setNoteDraft] = useState("");
   const [formErrors, setFormErrors] = useState<string[]>([]);
+
+  // ——— Delete ———
+  const [deleting, setDeleting] = useState<ShelfMaterial | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   // ——— CSV import ———
   const [importOpen, setImportOpen] = useState(false);
@@ -151,9 +170,23 @@ export default function Inventory() {
       price: "",
       vendor: "",
       threshold: "56.7",
+      notes: [],
     });
+    setNoteDraft("");
     setFormErrors([]);
     setDialogOpen(true);
+  }
+
+  function addNoteDraft() {
+    const note = noteDraft.trim();
+    if (!note) return;
+    setForm((f) =>
+      f.notes.length >= 20 ||
+      f.notes.some((n) => n.toLowerCase() === note.toLowerCase())
+        ? f
+        : { ...f, notes: [...f.notes, note] },
+    );
+    setNoteDraft("");
   }
 
   function openEdit(material: ShelfMaterial) {
@@ -167,7 +200,9 @@ export default function Inventory() {
       price: String(material.price),
       vendor: material.vendor ?? "",
       threshold: String(material.lowStockThreshold ?? 56.7),
+      notes: material.notes ? [...material.notes] : [],
     });
+    setNoteDraft("");
     setFormErrors([]);
     setDialogOpen(true);
   }
@@ -209,6 +244,7 @@ export default function Inventory() {
           : Number(form.initial),
         price: Number(form.price),
         vendor: form.vendor.trim() || undefined,
+        notes: form.notes,
       };
       if (editing) {
         await updateMaterial({
@@ -233,6 +269,25 @@ export default function Inventory() {
       ]);
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting || deleteBusy) return;
+    setDeleteBusy(true);
+    try {
+      const result = await removeMaterial({ id: deleting._id });
+      toast.success("Material removed from the shelf", {
+        description: result.removedName,
+      });
+      setDeleting(null);
+    } catch (error) {
+      toast.error("Cannot remove this material", {
+        description:
+          error instanceof Error ? error.message : "Try again.",
+      });
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -557,6 +612,14 @@ export default function Inventory() {
                             >
                               <Pencil className="size-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              aria-label={`Remove ${material.name}`}
+                              onClick={() => setDeleting(material)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -703,6 +766,50 @@ export default function Inventory() {
                 />
               </Field>
             </div>
+            <div className="sm:col-span-2">
+              <Field label="Notes (facets for the note picker)">
+                <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-input bg-background/60 px-2 py-1.5">
+                  {form.notes.map((note) => (
+                    <span
+                      key={note}
+                      className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-accent/40 px-2 py-0.5 font-mono text-xs"
+                    >
+                      {note}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${note}`}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            notes: f.notes.filter((n) => n !== note),
+                          }))
+                        }
+                        className="text-muted-foreground transition-colors hover:text-destructive"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <Input
+                    value={noteDraft}
+                    onChange={(event) => setNoteDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        addNoteDraft();
+                      }
+                    }}
+                    placeholder={
+                      form.notes.length === 0
+                        ? "rose, citrus, smoky…"
+                        : "add another…"
+                    }
+                    aria-label="Add a note"
+                    className="h-6 min-w-24 flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
+                  />
+                </div>
+              </Field>
+            </div>
           </div>
 
           {formErrors.length > 0 ? (
@@ -736,6 +843,36 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
+      {/* ——— Delete confirmation ——— */}
+      <AlertDialog
+        open={Boolean(deleting)}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Remove {deleting?.name} from the shelf?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The material leaves the inventory for good. Materials that are
+              part of a formula version or a weighed batch are protected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteBusy}
+              onClick={confirmDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleteBusy ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* ——— CSV import dialog ——— */}
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-2xl">
@@ -745,7 +882,8 @@ export default function Inventory() {
             </DialogTitle>
             <DialogDescription className="italic">
               Columns: Fragrance Name, Group, Initial Grams, Remaining Grams,
-              Price, $/g (ignored), Vendor, and optional Category.
+              Price, $/g (ignored), Vendor — plus optional Category and Notes
+              (semicolon-separated).
             </DialogDescription>
           </DialogHeader>
 

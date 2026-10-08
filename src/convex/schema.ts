@@ -81,7 +81,13 @@ const schema = defineSchema(
       price: v.number(),
       vendor: v.optional(v.string()),
       lowStockThreshold: v.optional(v.number()),
-    }).index("by_name", ["name"]),
+      /** Characteristic facets ("rose", "citrus", "smoky") for the picker. */
+      notes: v.optional(v.array(v.string())),
+    })
+      .index("by_name", ["name"])
+      // PRD: index the filter columns so the note picker stays instantaneous.
+      .index("by_group", ["olfactiveGroup"])
+      .index("by_category", ["category"]),
 
     // -----------------------------------------------------------------------
     // 2. Formulas — parent/child versioning (parentId links a new version to

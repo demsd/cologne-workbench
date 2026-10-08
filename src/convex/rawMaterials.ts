@@ -10,6 +10,23 @@ import {
 } from "./starterMaterials";
 import { roundTo } from "../lib/formula-math";
 
+/** Trim, dedupe (case-insensitive) and bound the note tags for the picker. */
+function normalizeNotes(notes: string[] | undefined): string[] | undefined {
+  if (!notes) return undefined;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of notes) {
+    const note = raw.trim().slice(0, 40);
+    if (!note) continue;
+    const key = note.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(note);
+    if (out.length >= 20) break;
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 /**
  * All raw materials, sorted by name, with the derived price-per-gram and a
  * low-stock flag (remaining at or under the material's threshold). Feeds the
@@ -78,13 +95,46 @@ export const ensureStarterKit = mutation({
 });
 
 /**
- * Empty the shelf entirely (before importing a fresh price list). Refuses
- * while any formula version still references a material, so records never
- * dangle — the starter shelf is NOT re-installed afterward.
+ * Delete one material. Refuses while any formula item or weighed batch still
+ * references it, so records never dangle.
+ */
+export const remove = mutation({
+  args: { id: v.id("rawMaterials") },
+  handler: async (ctx, { id }) => {
+    const material = await ctx.db.get(id);
+    if (!material) throw new Error("That material is missing from the shelf.");
+
+    const formulaItems = await ctx.db.query("formulaItems").collect();
+    const usedInFormula = formulaItems.some(
+      (item) => item.rawMaterialId === id,
+    );
+    if (usedInFormula) {
+      throw new Error(
+        `“${material.name}” is part of a formula version — remove it from the formula first.`,
+      );
+    }
+    const batchItems = await ctx.db.query("batchItems").collect();
+    const usedInBatch = batchItems.some((item) => item.rawMaterialId === id);
+    if (usedInBatch) {
+      throw new Error(
+        `“${material.name}” was weighed into a recorded batch — bench records keep their materials.`,
+      );
+    }
+
+    await ctx.db.delete(id);
+    return { removedName: material.name };
+  },
+});
+
+/**
+ * Empty the shelf entirely (before importing a fresh price list). Deliberately
+ * awkward to fire blind: the caller must state how many materials it expects
+ * to remove, and the mutation refuses on any mismatch. Also refuses while any
+ * formula version exists.
  */
 export const clearAll = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: { expectCount: v.number() },
+  handler: async (ctx, { expectCount }) => {
     const formulas = await ctx.db.query("formulas").collect();
     if (formulas.length > 0) {
       throw new Error(
@@ -92,6 +142,11 @@ export const clearAll = mutation({
       );
     }
     const materials = await ctx.db.query("rawMaterials").collect();
+    if (materials.length !== expectCount) {
+      throw new Error(
+        `The shelf holds ${materials.length} materials, not ${expectCount} — re-count before emptying it.`,
+      );
+    }
     for (const material of materials) {
       await ctx.db.delete(material._id);
     }
@@ -111,6 +166,7 @@ export const add = mutation({
     price: v.number(),
     vendor: v.optional(v.string()),
     lowStockThreshold: v.optional(v.number()),
+    notes: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const name = args.name.trim();
@@ -137,6 +193,7 @@ export const add = mutation({
       price: args.price,
       vendor: args.vendor?.trim() || undefined,
       lowStockThreshold: args.lowStockThreshold ?? DEFAULT_LOW_STOCK_THRESHOLD,
+      notes: normalizeNotes(args.notes),
     });
   },
 });
@@ -153,6 +210,7 @@ export const update = mutation({
     price: v.number(),
     vendor: v.optional(v.string()),
     lowStockThreshold: v.number(),
+    notes: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.id);
@@ -186,6 +244,7 @@ export const update = mutation({
       price: args.price,
       vendor: args.vendor?.trim() || undefined,
       lowStockThreshold: args.lowStockThreshold,
+      notes: normalizeNotes(args.notes),
     });
     return args.id;
   },
@@ -207,6 +266,7 @@ export const bulkUpsert = mutation({
         remainingGrams: v.number(),
         price: v.number(),
         vendor: v.optional(v.string()),
+        notes: v.optional(v.array(v.string())),
       }),
     ),
   },
@@ -240,6 +300,7 @@ export const bulkUpsert = mutation({
           remainingGrams: row.remainingGrams,
           price: row.price,
           vendor: row.vendor?.trim() || undefined,
+          notes: normalizeNotes(row.notes),
         });
         updated += 1;
       } else {
@@ -252,6 +313,7 @@ export const bulkUpsert = mutation({
           price: row.price,
           vendor: row.vendor?.trim() || undefined,
           lowStockThreshold: DEFAULT_LOW_STOCK_THRESHOLD,
+          notes: normalizeNotes(row.notes),
         });
         inserted += 1;
       }
