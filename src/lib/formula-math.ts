@@ -111,6 +111,7 @@ export const GROUP_ORDER: OlfactiveGroup[] = [
   "Middle",
   "Base",
   "Fixative",
+  "Alcohol",
 ];
 
 export const GROUP_HEADINGS: Record<OlfactiveGroup, string> = {
@@ -118,6 +119,7 @@ export const GROUP_HEADINGS: Record<OlfactiveGroup, string> = {
   Middle: "Middle Notes",
   Base: "Base Notes",
   Fixative: "Fixatives",
+  Alcohol: "Alcohol",
 };
 
 /** The subsections that actually have ingredients, in perfumery order. */

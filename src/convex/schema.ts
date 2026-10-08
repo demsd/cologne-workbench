@@ -31,7 +31,15 @@ export const materialCategoryValidator = v.union(
 );
 export type MaterialCategory = Infer<typeof materialCategoryValidator>;
 
-export const OLFACTIVE_GROUPS = ["Top", "Middle", "Base", "Fixative"] as const;
+export const OLFACTIVE_GROUPS = [
+  "Top",
+  "Middle",
+  "Base",
+  "Fixative",
+  // Carriers weigh in as their own group — vendor price lists and real
+  // batches both treat perfumer's alcohol as a line item, not a note.
+  "Alcohol",
+] as const;
 export const olfactiveGroupValidator = v.union(
   ...OLFACTIVE_GROUPS.map((g) => v.literal(g)),
 );

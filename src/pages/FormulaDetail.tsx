@@ -51,6 +51,7 @@ const GROUP_COLORS: Record<OlfactiveGroup, string> = {
   Middle: "var(--chart-2)",
   Base: "var(--chart-3)",
   Fixative: "var(--chart-4)",
+  Alcohol: "var(--chart-5)",
 };
 
 export default function FormulaDetail() {

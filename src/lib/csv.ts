@@ -2,7 +2,7 @@ import type {
   MaterialCategory,
   OlfactiveGroup,
 } from "../convex/schema";
-import { MATERIAL_CATEGORIES } from "../convex/schema";
+import { MATERIAL_CATEGORIES, OLFACTIVE_GROUPS } from "../convex/schema";
 
 /** Split one CSV line, honouring double-quoted fields ("")). */
 export function parseCsvLine(line: string): string[] {
@@ -80,9 +80,8 @@ function toNumber(cell: string): number {
 function matchGroup(cell: string): OlfactiveGroup | null {
   const key = cell.trim().toLowerCase();
   if (!key) return null;
-  const groups: OlfactiveGroup[] = ["Top", "Middle", "Base", "Fixative"];
   return (
-    groups.find(
+    OLFACTIVE_GROUPS.find(
       (group) => group.toLowerCase() === key || group.toLowerCase().startsWith(key),
     ) ?? null
   );
@@ -145,7 +144,13 @@ export function parseInventoryCsv(text: string): InventoryCsvPreview {
       continue;
     }
 
-    const category = cells[7] ? matchCategory(cells[7]) : null;
+    // A row grouped as Alcohol is obviously an Alcohol-category material even
+    // when the optional Category column is blank.
+    const category = cells[7]
+      ? matchCategory(cells[7])
+      : group === "Alcohol"
+        ? "Alcohol"
+        : null;
     if (cells[7] && !category) {
       errors.push(
         `Line ${line}: “${cells[7]}” is not a known category (Alcohol, Fragrance Oil, Fixative, Diluent).`,

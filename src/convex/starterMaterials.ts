@@ -222,7 +222,7 @@ export const STARTER_MATERIALS: StarterMaterial[] = [
   {
     name: "Perfumer's Alcohol, 96°",
     category: "Alcohol",
-    olfactiveGroup: "Fixative",
+    olfactiveGroup: "Alcohol",
     initialGrams: 1000,
     price: 14.5,
     vendor: "Apothecary Extracts",

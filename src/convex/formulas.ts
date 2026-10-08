@@ -3,6 +3,7 @@ import { query, mutation } from "./_generated/server";
 import {
   formulaStatusValidator,
   olfactiveGroupValidator,
+  type OlfactiveGroup,
 } from "./schema";
 import type { Doc, Id } from "./_generated/dataModel";
 import {
@@ -215,7 +216,7 @@ export const create = mutation({
     const weighed: {
       rawMaterialId: Id<"rawMaterials">;
       materialName: string;
-      olfactiveGroup: "Top" | "Middle" | "Base" | "Fixative";
+      olfactiveGroup: OlfactiveGroup;
       amountGrams: number;
     }[] = [];
 
