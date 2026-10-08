@@ -5,11 +5,13 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import React, { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 
 // Lazy load route components for better code splitting
-const Landing = lazy(() => import("./pages/Landing.tsx"));
+const Workbench = lazy(() => import("./pages/Workbench.tsx"));
+const FormulaNew = lazy(() => import("./pages/FormulaNew.tsx"));
+const FormulaDetail = lazy(() => import("./pages/FormulaDetail.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -118,10 +120,17 @@ createRoot(document.getElementById("root")!).render(
           <RouteSyncer />
           <Suspense fallback={<RouteLoading />}>
             <Routes>
-              <Route path="/" element={<Landing />} />
+              {/* Main screen: the formula ledger (version 1 — no auth). */}
+              <Route path="/" element={<Workbench />} />
+              <Route
+                path="/formulas"
+                element={<Navigate to="/" replace />}
+              />
+              <Route path="/formulas/new" element={<FormulaNew />} />
+              <Route path="/formulas/:id" element={<FormulaDetail />} />
               <Route
                 path="/auth"
-                element={<AuthPage redirectAfterAuth="/dashboard" />}
+                element={<AuthPage redirectAfterAuth="/" />}
               />
               <Route
                 path="/dashboard"

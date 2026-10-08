@@ -16,6 +16,33 @@ export const roleValidator = v.union(
 );
 export type Role = Infer<typeof roleValidator>;
 
+// ---------------------------------------------------------------------------
+// Cologne Workbench — value objects (mirrors the PRD's MySQL ENUMs)
+// ---------------------------------------------------------------------------
+
+export const MATERIAL_CATEGORIES = [
+  "Alcohol",
+  "Fragrance Oil",
+  "Fixative",
+  "Diluent",
+] as const;
+export const materialCategoryValidator = v.union(
+  ...MATERIAL_CATEGORIES.map((c) => v.literal(c)),
+);
+export type MaterialCategory = Infer<typeof materialCategoryValidator>;
+
+export const OLFACTIVE_GROUPS = ["Top", "Middle", "Base", "Fixative"] as const;
+export const olfactiveGroupValidator = v.union(
+  ...OLFACTIVE_GROUPS.map((g) => v.literal(g)),
+);
+export type OlfactiveGroup = Infer<typeof olfactiveGroupValidator>;
+
+export const FORMULA_STATUSES = ["Experiment", "Production"] as const;
+export const formulaStatusValidator = v.union(
+  ...FORMULA_STATUSES.map((s) => v.literal(s)),
+);
+export type FormulaStatus = Infer<typeof formulaStatusValidator>;
+
 const schema = defineSchema(
   {
     // default auth tables using convex auth.
@@ -32,12 +59,55 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
     }).index("email", ["email"]), // index for the email. do not remove or modify
 
-    // add other tables here
+    // -----------------------------------------------------------------------
+    // 1. Inventory & raw materials (feeds the ingredient dropdowns; the full
+    //    inventory UI arrives after version 1).
+    // -----------------------------------------------------------------------
+    rawMaterials: defineTable({
+      name: v.string(),
+      category: materialCategoryValidator,
+      olfactiveGroup: olfactiveGroupValidator,
+      initialGrams: v.number(),
+      remainingGrams: v.number(),
+      /** Total cost of the initial package in USD. */
+      price: v.number(),
+      vendor: v.optional(v.string()),
+      lowStockThreshold: v.optional(v.number()),
+    }).index("by_name", ["name"]),
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    // -----------------------------------------------------------------------
+    // 2. Formulas — parent/child versioning (parentId links a new version to
+    //    the one it was revised from; v1 only creates fresh formulas).
+    // -----------------------------------------------------------------------
+    formulas: defineTable({
+      name: v.string(),
+      status: formulaStatusValidator,
+      versionNumber: v.string(),
+      versionDescription: v.optional(v.string()),
+      batchWeightGrams: v.number(),
+      concentrationPct: v.number(),
+      bottleVolumeMl: v.optional(v.number()),
+      minDropGrams: v.number(),
+      /** Denormalised so the ledger list renders without a second query. */
+      ingredientCount: v.number(),
+      /** Sum of all ingredient grams actually recorded in this version. */
+      totalGrams: v.number(),
+      parentId: v.optional(v.id("formulas")),
+    }),
+
+    // -----------------------------------------------------------------------
+    // 3. Formula items — one row per ingredient of a formula version.
+    // -----------------------------------------------------------------------
+    formulaItems: defineTable({
+      formulaId: v.id("formulas"),
+      rawMaterialId: v.id("rawMaterials"),
+      /** Snapshot of the material name at filing time (traceability). */
+      materialName: v.string(),
+      olfactiveGroup: olfactiveGroupValidator,
+      amountGrams: v.number(),
+      percentage: v.number(),
+      sortOrder: v.number(),
+    }).index("by_formula", ["formulaId"]),
   },
   {
     schemaValidation: false,
