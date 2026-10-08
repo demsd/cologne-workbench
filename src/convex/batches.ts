@@ -117,12 +117,36 @@ export const create = mutation({
   },
 });
 
-/** The most recent weighing records, newest first (Lab Journal reads these). */
+/**
+ * The production log (the PRD's Lab Journal): every weighing record, newest
+ * first, each with the formula version it came from and the exact weights
+ * on record. Records are immutable, so the log is a plain read.
+ */
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const batches = await ctx.db.query("productionBatches").order("desc").collect();
-    return batches.slice(0, 50);
+    const batches = await ctx.db
+      .query("productionBatches")
+      .order("desc")
+      .collect();
+
+    const entries = [];
+    for (const batch of batches) {
+      const formula = await ctx.db.get(batch.formulaId);
+      const items = await ctx.db
+        .query("batchItems")
+        .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
+        .collect();
+      items.sort((a, b) => a.sortOrder - b.sortOrder);
+
+      entries.push({
+        ...batch,
+        formulaName: formula?.name ?? null,
+        formulaVersion: formula?.versionNumber ?? null,
+        items,
+      });
+    }
+    return entries;
   },
 });
 
