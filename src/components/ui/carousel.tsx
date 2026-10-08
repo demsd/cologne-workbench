@@ -93,12 +93,16 @@ function Carousel({
 
   React.useEffect(() => {
     if (!api) return
-    onSelect(api)
+    // Notify asynchronously: consumers may set state inside onSelect (slide
+    // index, scroll flags), and an effect must not setState synchronously.
+    const notify = requestAnimationFrame(() => onSelect(api))
     api.on("reInit", onSelect)
     api.on("select", onSelect)
 
     return () => {
-      api?.off("select", onSelect)
+      cancelAnimationFrame(notify)
+      api.off("reInit", onSelect)
+      api.off("select", onSelect)
     }
   }, [api, onSelect])
 
