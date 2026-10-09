@@ -1,7 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/use-auth";
 import { useStarterMaterials } from "@/hooks/use-starter-materials";
 import { formatGrams } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
@@ -12,12 +11,11 @@ import {
   Database,
   Filter,
   LayoutDashboard,
-  LogOut,
   Plus,
   ScrollText,
 } from "lucide-react";
 import { useMemo } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 
 const money = (value: number) => `$${value.toFixed(2)}`;
 
@@ -36,9 +34,6 @@ function StatusStamp({ status }: { status: "Experiment" | "Production" }) {
 }
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
   const materials = useStarterMaterials();
   const formulas = useQuery(api.formulas.list);
   const batches = useQuery(api.batches.list);
@@ -86,11 +81,6 @@ export default function Dashboard() {
   const experimentCount = families.length - productionCount;
   const recentPours = batches?.slice(0, 4) ?? [];
 
-  async function handleSignOut() {
-    await signOut();
-    navigate("/");
-  }
-
   if (loading) {
     return (
       <main className="min-h-screen">
@@ -119,21 +109,7 @@ export default function Dashboard() {
         {/* ——— Workspace bar ——— */}
         <div className="flex items-center justify-between gap-4 border-b border-border/70 py-4">
           <p className="label-caps">Cologne Workbench · Workspace</p>
-          <div className="flex items-center gap-3">
-            <p className="label-caps hidden sm:block">
-              {user?.name ? user.name : "Signed in"}
-            </p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-              className="gap-1.5"
-            >
-              <LogOut className="size-3.5" />
-              Sign out
-            </Button>
-          </div>
+          <p className="label-caps hidden sm:block">The bench at home</p>
         </div>
 
         <motion.div
@@ -147,7 +123,7 @@ export default function Dashboard() {
           </div>
           <p className="label-caps mt-5">Workspace</p>
           <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            Welcome back{user?.name ? `, ${user.name}` : ""}
+            Welcome back
           </h1>
           <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground italic">
             The shelf, the ledger and the journal at a glance — everything
@@ -358,7 +334,7 @@ export default function Dashboard() {
           </Button>
           <span className="label-caps ml-auto hidden sm:block">
             <LayoutDashboard className="mr-1.5 inline size-3.5 align-text-bottom" />
-            Your signed-in workspace
+            Your workspace
           </span>
         </div>
       </div>

@@ -1,33 +1,24 @@
 import type { AuthConfig } from "convex/server";
 
-// Freebuff-signed federated tokens (see freebuff web's
-// src/lib/vly-convex-jwt.ts) let a signed-in freebuff.com user carry their
-// identity into this project without going through local sign-in. customJwt
-// is correct for this provider: freebuff's tokens and JWKS both carry a
-// `kid` header, which the customJwt validation path requires.
-const freebuffIssuer =
-  process.env.VLY_CONVEX_AUTH_ISSUER ?? "https://freebuff.com";
-
+// The app has no login: no route is gated and no provider asks the user for
+// credentials. The lone entry below is the deployment's own Convex Auth
+// provider (CONVEX_SITE_URL is always provided by Convex), kept so the auth
+// component still validates its own session tokens. The freebuff.com
+// federated provider was removed on purpose — it referenced
+// VLY_CONVEX_AUTH_ISSUER, which Convex requires to be set on every push,
+// blocking local `npx convex dev` for a sign-in nobody uses.
 export default {
   providers: [
-    // Standard Convex Auth provider for this project's own sign-in ("Get
-    // Started" email/guest, see src/convex/auth.ts). The deployment
-    // self-issues JWTs (iss = CONVEX_SITE_URL, no `kid` header) validated
-    // via OIDC discovery at `${domain}/.well-known/openid-configuration`,
-    // served by auth.addHttpRoutes() in convex/http.ts. Do NOT convert this
-    // entry to `type: "customJwt"` — that path rejects tokens without a
-    // `kid` header, so sign-in would silently never confirm and RequireAuth
-    // would loop back to /auth forever.
+    // The deployment's own provider: it self-issues JWTs (iss =
+    // CONVEX_SITE_URL, no `kid` header) validated via OIDC discovery at
+    // `${domain}/.well-known/openid-configuration`, served by
+    // auth.addHttpRoutes() in convex/http.ts. No route asks the user to
+    // sign in — this entry only keeps the auth component's plumbing valid
+    // at deploy time. Do NOT convert it to `type: "customJwt"`: that path
+    // rejects tokens without a `kid` header.
     {
       domain: process.env.CONVEX_SITE_URL!,
       applicationID: "convex",
-    },
-    {
-      type: "customJwt",
-      issuer: freebuffIssuer,
-      jwks: `${freebuffIssuer}/api/web/.well-known/jwks.json`,
-      applicationID: "vly-convex",
-      algorithm: "RS256",
     },
   ],
 } satisfies AuthConfig;

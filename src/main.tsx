@@ -1,5 +1,4 @@
 import { Toaster } from "@/components/ui/sonner";
-import { RequireAuth } from "@/components/RequireAuth";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
@@ -20,7 +19,6 @@ const ProductionLog = lazy(() => import("./pages/ProductionLog.tsx"));
 const FormulaPrint = lazy(() => import("./pages/FormulaPrint.tsx"));
 const Restock = lazy(() => import("./pages/Restock.tsx"));
 const Backup = lazy(() => import("./pages/Backup.tsx"));
-const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -148,18 +146,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/log" element={<ProductionLog />} />
               <Route path="/restock" element={<Restock />} />
               <Route path="/backup" element={<Backup />} />
-              <Route
-                path="/auth"
-                element={<AuthPage redirectAfterAuth="/dashboard" />}
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <RequireAuth>
-                    <Dashboard />
-                  </RequireAuth>
-                }
-              />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
