@@ -1,5 +1,16 @@
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -63,6 +74,8 @@ export default function Labels() {
   });
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  /** Which row's remove is in flight — drives the dialog's button state. */
+  const [removingId, setRemovingId] = useState<Id<"labels"> | null>(null);
 
   const template = getTemplate(templateId);
   const capacity = template.kind === "a4" ? sheetCapacity(template) : 0;
@@ -121,20 +134,35 @@ export default function Labels() {
   }
 
   async function handleEnqueueMissing() {
-    const added = await enqueueMissing();
-    toast.success(
-      `${added} label${added === 1 ? "" : "s"} queued`,
-      { description: "Existing pours caught up with the queue." },
-    );
+    try {
+      const added = await enqueueMissing();
+      toast.success(
+        `${added} label${added === 1 ? "" : "s"} queued`,
+        { description: "Existing pours caught up with the queue." },
+      );
+    } catch {
+      toast.error("Couldn't queue the labels", {
+        description: "The ledger refused the change — try again.",
+      });
+    }
   }
 
   async function handleRemove(id: Id<"labels">) {
-    await removeLabel({ id });
-    setSelected((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+    setRemovingId(id);
+    try {
+      await removeLabel({ id });
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    } catch {
+      toast.error("Couldn't remove the label", {
+        description: "The ledger refused the change — try again.",
+      });
+    } finally {
+      setRemovingId(null);
+    }
   }
 
   /** Hand the selection to the print view, geometry included. */
@@ -451,15 +479,42 @@ export default function Labels() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-right align-top">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleRemove(label._id)}
-                          aria-label={`Remove label for ${label.batchNumber}`}
-                        >
-                          <X className="size-3.5" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-muted-foreground hover:text-destructive"
+                              aria-label={`Remove label for ${label.batchNumber}`}
+                            >
+                              <X className="size-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Remove the label for {label.batchNumber}?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                The label leaves the print queue — the pour
+                                itself stays in the journal. The catch-up
+                                button can queue it again later.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep it</AlertDialogCancel>
+                              <AlertDialogAction
+                                disabled={removingId === label._id}
+                                onClick={() => handleRemove(label._id)}
+                                className="bg-destructive text-white hover:bg-destructive/90"
+                              >
+                                {removingId === label._id
+                                  ? "Removing…"
+                                  : "Remove label"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </td>
                     </tr>
                   ))}

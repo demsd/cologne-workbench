@@ -17,6 +17,7 @@ import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Printer } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useSearchParams } from "react-router";
+import { toast } from "sonner";
 
 /* Fixed ink on fixed paper: labels read the same in either theme and on a
    monochrome thermal head. Never theme tokens inside a label. */
@@ -104,7 +105,14 @@ export default function LabelPrint() {
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         window.print();
-        void markPrinted({ ids: selectedIds }).catch(() => {});
+        // The run went to the printer; if stamping fails the rows simply
+        // stay queued — say so rather than fail silently.
+        void markPrinted({ ids: selectedIds }).catch(() => {
+          toast.error("Labels printed, but not stamped", {
+            description:
+              "They'll stay queued in the queue — printing again is harmless.",
+          });
+        });
       }),
     );
   }
