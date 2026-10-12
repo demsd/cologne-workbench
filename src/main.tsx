@@ -17,6 +17,8 @@ const Inventory = lazy(() => import("./pages/Inventory.tsx"));
 const NotePicker = lazy(() => import("./pages/NotePicker.tsx"));
 const ProductionLog = lazy(() => import("./pages/ProductionLog.tsx"));
 const FormulaPrint = lazy(() => import("./pages/FormulaPrint.tsx"));
+const Labels = lazy(() => import("./pages/Labels.tsx"));
+const LabelPrint = lazy(() => import("./pages/LabelPrint.tsx"));
 const Restock = lazy(() => import("./pages/Restock.tsx"));
 const Backup = lazy(() => import("./pages/Backup.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
@@ -144,6 +146,8 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/notes" element={<NotePicker />} />
               <Route path="/log" element={<ProductionLog />} />
+              <Route path="/labels" element={<Labels />} />
+              <Route path="/labels/print" element={<LabelPrint />} />
               <Route path="/restock" element={<Restock />} />
               <Route path="/backup" element={<Backup />} />
               <Route path="/dashboard" element={<Dashboard />} />

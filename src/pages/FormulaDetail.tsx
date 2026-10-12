@@ -13,6 +13,7 @@ import {
 import type { Id } from "@/convex/_generated/dataModel";
 import type { OlfactiveGroup } from "@/convex/schema";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -23,16 +24,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  GRAM_DECIMALS,
   GROUP_HEADINGS,
   GROUP_ORDER,
   formatGrams,
   formatMl,
   formatPct,
+  roundTo,
 } from "@/lib/formula-math";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   ArrowLeft,
   ChevronRight,
@@ -68,6 +71,8 @@ export default function FormulaDetail() {
   const removeFormula = useMutation(api.formulas.remove);
   const navigate = useNavigate();
   const [deleting, setDeleting] = useState(false);
+  /** Scale calculator target in grams — empty means the design total. */
+  const [targetInput, setTargetInput] = useState("");
 
   /** Delete this version; the ledger survives with its lineage re-linked. */
   async function handleDelete() {
@@ -163,6 +168,16 @@ export default function FormulaDetail() {
       pct: items.reduce((sum, item) => sum + item.percentage, 0),
     };
   }).filter((section) => section.items.length > 0);
+
+  /* Scale calculator: the design total is the default target, and any
+     positive number retargets the whole batch instantly. One factor,
+     applied to every material — percentages never move. */
+  const targetRaw = targetInput.trim();
+  const scaleTarget =
+    targetRaw === "" ? detail.totalGrams : Number(targetRaw);
+  const scaleValid =
+    detail.totalGrams > 0 && Number.isFinite(scaleTarget) && scaleTarget > 0;
+  const scaleFactor = scaleValid ? scaleTarget / detail.totalGrams : 1;
 
   const particulars: { label: string; value: string }[] = [
     { label: "Version", value: detail.versionNumber },
@@ -374,6 +389,124 @@ export default function FormulaDetail() {
               </div>
             ))}
           </dl>
+
+          {/* ——— Scale calculator ———
+              PRD: scale total batch outputs (30 g → 60/90/120 or any
+              custom target) instantly — pure client maths, the ledger is
+              never touched. Percentages never move; only grams do. */}
+          <section className="paper-sheet mt-6 rounded-lg border border-border/70 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="label-caps">Scale calculator</p>
+              <p className="label-caps text-muted-foreground">
+                design {formatGrams(detail.totalGrams)} g
+              </p>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {[2, 3, 4].map((multiple) => (
+                <Button
+                  key={multiple}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 font-mono"
+                  onClick={() =>
+                    setTargetInput(String(roundTo(detail.totalGrams * multiple, 2)))
+                  }
+                >
+                  ×{multiple} · {formatGrams(detail.totalGrams * multiple)} g
+                </Button>
+              ))}
+              <span className="label-caps ml-1">custom</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                value={targetInput}
+                placeholder={formatGrams(detail.totalGrams)}
+                onChange={(event) => setTargetInput(event.target.value)}
+                aria-label="Target total grams"
+                className="h-8 w-28 font-mono"
+              />
+              <span className="label-caps">g total</span>
+              {targetInput !== "" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTargetInput("")}
+                >
+                  Reset
+                </Button>
+              ) : null}
+              {scaleValid ? (
+                <span className="rounded-full border border-brass/50 bg-brass/10 px-2 py-0.5 font-mono text-xs font-bold text-brass">
+                  ×{scaleFactor.toFixed(3)}
+                </span>
+              ) : null}
+            </div>
+
+            {scaleValid ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/60">
+                      <th className="pb-1.5 text-left label-caps">Material</th>
+                      <th className="w-32 pb-1.5 text-right label-caps">
+                        Design g
+                      </th>
+                      <th className="w-36 pb-1.5 text-right label-caps">
+                        Scaled g
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sections.map((section) => (
+                      <Fragment key={section.group}>
+                        <tr className="border-b border-border/40 bg-muted/40">
+                          <td colSpan={3} className="py-1 label-caps">
+                            {GROUP_HEADINGS[section.group]}
+                          </td>
+                        </tr>
+                        {section.items.map((item) => (
+                          <tr
+                            key={item._id}
+                            className="border-b border-border/30 last:border-0"
+                          >
+                            <td className="py-1.5">{item.materialName}</td>
+                            <td className="py-1.5 text-right font-mono text-muted-foreground">
+                              {formatGrams(item.amountGrams)}
+                            </td>
+                            <td className="py-1.5 text-right font-mono font-semibold">
+                              {formatGrams(
+                                roundTo(item.amountGrams * scaleFactor, GRAM_DECIMALS),
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    ))}
+                    <tr className="border-t-2 border-border/80">
+                      <td className="py-1.5 label-caps">
+                        {targetInput === "" ? "Design total" : "Scaled total"}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-sm text-muted-foreground">
+                        {formatGrams(detail.totalGrams)}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-sm font-bold">
+                        {formatGrams(roundTo(scaleTarget, GRAM_DECIMALS))}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-4 text-sm italic text-muted-foreground">
+                Enter a target above zero grams to scale the batch.
+              </p>
+            )}
+          </section>
 
           {/* ——— Grouped composition sheets ——— */}
           {sections.map((section) => (

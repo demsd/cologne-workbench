@@ -90,6 +90,12 @@ export const remove = mutation({
         .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
         .collect();
       for (const item of batchItems) await ctx.db.delete(item._id);
+      // So do the queued labels for those pours — no orphaned labels.
+      const labels = await ctx.db
+        .query("labels")
+        .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
+        .collect();
+      for (const label of labels) await ctx.db.delete(label._id);
       await ctx.db.delete(batch._id);
     }
 

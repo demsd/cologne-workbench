@@ -156,6 +156,27 @@ const schema = defineSchema(
       actualGrams: v.number(),
       sortOrder: v.number(),
     }).index("by_batch", ["batchId"]),
+
+    // -----------------------------------------------------------------------
+    // 5. Label queue — one row per pour, filed automatically when the batch
+    //    is created (PRD: labels queue upon creating production batches).
+    //    The particulars are snapshotted here so a label prints the same
+    //    forever, exactly like the batch record it came from.
+    // -----------------------------------------------------------------------
+    labels: defineTable({
+      batchId: v.id("productionBatches"),
+      batchNumber: v.string(),
+      formulaName: v.string(),
+      formulaVersion: v.string(),
+      concentrationPct: v.number(),
+      /** The actual total weighed — the amount printed on the label. */
+      totalAmountGrams: v.number(),
+      status: v.union(v.literal("queued"), v.literal("printed")),
+      printedAt: v.optional(v.number()),
+    })
+      // One label per batch: enqueue stays idempotent.
+      .index("by_batch", ["batchId"])
+      .index("by_status", ["status"]),
   },
   {
     schemaValidation: false,

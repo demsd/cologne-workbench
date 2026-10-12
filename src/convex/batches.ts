@@ -99,6 +99,19 @@ export const create = mutation({
       await ctx.db.insert("batchItems", { batchId, ...item, sortOrder: index });
     }
 
+    // PRD: labels queue automatically upon creating production batches —
+    // name, concentration and total amount, snapshotted while the formula
+    // is right here. Same transaction: a filed pour always has its label.
+    await ctx.db.insert("labels", {
+      batchId,
+      batchNumber,
+      formulaName: formula.name,
+      formulaVersion: formula.versionNumber,
+      concentrationPct: formula.concentrationPct,
+      totalAmountGrams: actualTotal,
+      status: "queued",
+    });
+
     // — Update the shelf: each material's remaining grams drop by what was
     // actually weighed (clamped at zero). Deleting a batch later does NOT
     // restock — the pour physically happened; only the record goes away.

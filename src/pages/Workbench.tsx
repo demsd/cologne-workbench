@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   Plus,
   ScrollText,
+  Tag,
 } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
@@ -166,6 +167,12 @@ export default function Workbench() {
                 <Link to="/log">
                   <ScrollText className="size-3.5" />
                   Production log
+                </Link>
+              </Button>
+              <Button asChild size="sm" variant="outline" className="gap-1.5">
+                <Link to="/labels">
+                  <Tag className="size-3.5" />
+                  Labels
                 </Link>
               </Button>
               <Button asChild size="sm" variant="outline" className="gap-1.5">
