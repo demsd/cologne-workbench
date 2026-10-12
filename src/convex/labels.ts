@@ -5,11 +5,32 @@ import { mutation, query } from "./_generated/server";
  * The label queue: every pour files its label here the moment it is created
  * (see batches.create), and the labels page draws entirely from this table.
  * Particulars are snapshotted — a printed label never changes meaning.
+ *
+ * The version description is the one exception: it is resolved from the
+ * formula at read time rather than copied onto every row. Formula versions
+ * are immutable (formulas.ts exposes no update function) and labels are
+ * deleted together with their formula, so the resolved value can never
+ * drift — and labels queued before the field existed pick it up for free.
  */
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("labels").order("desc").collect();
+    const labels = await ctx.db.query("labels").order("desc").collect();
+
+    const descriptionByBatch = new Map<string, string | undefined>();
+    for (const label of labels) {
+      const key = label.batchId as string;
+      if (!descriptionByBatch.has(key)) {
+        const batch = await ctx.db.get(label.batchId);
+        const formula = batch ? await ctx.db.get(batch.formulaId) : null;
+        descriptionByBatch.set(key, formula?.versionDescription || undefined);
+      }
+    }
+
+    return labels.map((label) => ({
+      ...label,
+      versionDescription: descriptionByBatch.get(label.batchId as string),
+    }));
   },
 });
 

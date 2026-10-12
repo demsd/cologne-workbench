@@ -20,8 +20,8 @@ import { Link, useSearchParams } from "react-router";
    monochrome thermal head. Never theme tokens inside a label. */
 const cap = "text-[8px] font-semibold uppercase tracking-wider text-zinc-500";
 
-/** A row exactly as `labels.list` returns it. */
-type QueuedLabel = Doc<"labels">;
+/** A row as `labels.list` returns it — plus the resolved version note. */
+type QueuedLabel = Doc<"labels"> & { versionDescription?: string };
 
 function num(value: string | null, fallback: number): number {
   if (value === null) return fallback;
@@ -139,6 +139,16 @@ export default function LabelPrint() {
           >
             {label.formulaName}
           </p>
+          {label.versionDescription ? (
+            <p
+              className={cn(
+                "mt-[1mm] italic leading-snug text-zinc-600",
+                compact ? "line-clamp-1 text-[8.5px]" : "line-clamp-2 text-[10px]",
+              )}
+            >
+              {label.versionDescription}
+            </p>
+          ) : null}
           <p className={cn(cap, "mt-[1.5mm]")}>
             {label.formulaVersion} · {label.batchNumber}
           </p>
