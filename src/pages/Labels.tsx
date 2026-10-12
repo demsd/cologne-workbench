@@ -123,8 +123,10 @@ export default function Labels() {
       if (templateId === "custom") {
         params.set("cw", String(num(custom.w, 63.5)));
         params.set("ch", String(num(custom.h, 38.1)));
-        params.set("cc", String(Math.round(num(custom.cols, 3))));
-        params.set("cr", String(Math.round(num(custom.rows, 7))));
+        // Clamped to ≥1: a value like 0.4 would round to 0 and make the
+        // grid maths (capacity, slots) collapse to NaN on the print page.
+        params.set("cc", String(Math.max(1, Math.round(num(custom.cols, 3)))));
+        params.set("cr", String(Math.max(1, Math.round(num(custom.rows, 7)))));
         params.set("cs", String(num(custom.side, 7.3)));
         params.set("ct", String(num(custom.top, 15.2)));
         params.set("gx", String(gapNum(custom.gapX, 2.5)));

@@ -45,8 +45,9 @@ function templateFromParams(params: URLSearchParams): LabelTemplate {
       ...base,
       labelWidthMm: num(params.get("cw"), base.labelWidthMm),
       labelHeightMm: num(params.get("ch"), base.labelHeightMm),
-      cols: Math.round(num(params.get("cc"), base.cols)),
-      rows: Math.round(num(params.get("cr"), base.rows)),
+      // Clamped to ≥1 — a rounded-down 0 would turn every grid position NaN.
+      cols: Math.max(1, Math.round(num(params.get("cc"), base.cols))),
+      rows: Math.max(1, Math.round(num(params.get("cr"), base.rows))),
       sideMm: num(params.get("cs"), base.sideMm),
       topMm: num(params.get("ct"), base.topMm),
       gapXMm: numGap(params.get("gx"), base.gapXMm),
