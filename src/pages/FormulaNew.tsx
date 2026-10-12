@@ -80,11 +80,18 @@ function Field({
   );
 }
 
-export default function FormulaNew() {
+export default function FormulaNew({
+  mode = "create",
+}: {
+  /** `edit` revises in place; `revise` files a child version (v1 → v1.1). */
+  mode?: "create" | "edit" | "revise";
+}) {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const isRevise = mode === "revise";
   const materials = useStarterMaterials();
   const createFormula = useMutation(api.formulas.create);
+  const updateFormula = useMutation(api.formulas.update);
   /** The version being revised (edit mode only). */
   const source = useQuery(
     api.formulas.get,
@@ -139,7 +146,12 @@ export default function FormulaNew() {
     prefilled.current = true;
     setName(source.name);
     setStatus(source.status);
-    setVersionNumber(nextVersionNumber(source.versionNumber));
+    setVersionDescription(source.versionDescription ?? "");
+    setVersionNumber(
+      mode === "revise"
+        ? nextVersionNumber(source.versionNumber)
+        : source.versionNumber,
+    );
     setBatchWeight(String(source.batchWeightGrams));
     setConcentration(String(source.concentrationPct));
     setBottleVolume(
@@ -155,7 +167,7 @@ export default function FormulaNew() {
         grams: String(item.amountGrams),
       })),
     );
-  }, [source]);
+  }, [mode, source]);
 
   // — Edit-mode loading & missing states (all hooks run first) —
   if (id && source === undefined) {
@@ -334,7 +346,7 @@ export default function FormulaNew() {
 
     setSaving(true);
     try {
-      const id = await createFormula({
+      const fields = {
         name: name.trim(),
         status,
         versionNumber: versionNumber.trim(),
@@ -345,19 +357,37 @@ export default function FormulaNew() {
           ? parseFloat(bottleVolume)
           : undefined,
         minDropGrams: minDropNum,
-        parentId: source?._id,
         items: items.map((item) => ({
           rawMaterialId: item.rawMaterialId,
           olfactiveGroup: item.group,
           amountGrams: parseFloat(item.grams),
         })),
-      });
-      toast.success(isEdit ? "New version filed" : "Filed in the ledger", {
-        description: isEdit
-          ? `${name} · ${versionNumber} · revised from ${source?.versionNumber}`
-          : `${name} · ${versionNumber} · ${items.length} ingredient${items.length === 1 ? "" : "s"}`,
-      });
-      navigate(`/formulas/${id}`);
+      };
+      // In place for an existing node; otherwise a new node — either a fresh
+      // file or a child revision of the source version.
+      const savedId =
+        mode === "edit" && source
+          ? (await updateFormula({ id: source._id, ...fields })).id
+          : await createFormula({
+              ...fields,
+              parentId: isRevise ? source?._id : undefined,
+            });
+      toast.success(
+        mode === "edit"
+          ? "Version updated"
+          : isRevise
+            ? "New version filed"
+            : "Filed in the ledger",
+        {
+          description:
+            mode === "edit"
+              ? `${fields.name} · ${fields.versionNumber} · saved in place`
+              : isRevise
+                ? `${fields.name} · ${fields.versionNumber} · revised from ${source?.versionNumber}`
+                : `${fields.name} · ${fields.versionNumber} · ${items.length} ingredient${items.length === 1 ? "" : "s"}`,
+        },
+      );
+      navigate(`/formulas/${savedId}`);
     } catch (error) {
       setErrors([
         error instanceof Error
@@ -384,7 +414,11 @@ export default function FormulaNew() {
             {isEdit && source ? `${source.versionNumber} sheet` : "The Ledger"}
           </Link>
           <p className="label-caps hidden sm:block">
-            {isEdit ? "Revision · new version node" : "New entry · Draft"}
+            {mode === "create"
+              ? "New entry · Draft"
+              : mode === "edit"
+                ? "Editing · same version node"
+                : "Revision · new version node"}
           </p>
         </div>
 
@@ -394,25 +428,48 @@ export default function FormulaNew() {
               <span />
             </div>
             <p className="label-caps mt-5">
-              {isEdit ? "Revision sheet" : "Formulation sheet"}
+              {mode === "revise"
+                ? "Revision sheet"
+                : mode === "edit"
+                  ? "Editing sheet"
+                  : "Formulation sheet"}
             </p>
             <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-              {isEdit ? "New Version" : "New Formula"}
+              {mode === "revise"
+                ? "New Version"
+                : mode === "edit"
+                  ? "Edit Version"
+                  : "New Formula"}
             </h1>
             <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground italic">
               {isEdit && source ? (
-                <>
-                  Revising{" "}
-                  <span className="font-mono not-italic">
-                    {source.versionNumber}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-medium not-italic">
-                    “{source.name}”
-                  </span>{" "}
-                  — the revision is filed as its child; the original stays
-                  untouched.
-                </>
+                isRevise ? (
+                  <>
+                    Revising{" "}
+                    <span className="font-mono not-italic">
+                      {source.versionNumber}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-medium not-italic">
+                      “{source.name}”
+                    </span>{" "}
+                    — the revision is filed as its child; the original stays
+                    untouched.
+                  </>
+                ) : (
+                  <>
+                    Editing{" "}
+                    <span className="font-mono not-italic">
+                      {source.versionNumber}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-medium not-italic">
+                      “{source.name}”
+                    </span>{" "}
+                    in place — the same version stays put, so weighings and
+                    queued labels keep pointing here.
+                  </>
+                )
               ) : (
                 <>
                   Name the work, set the targets, then weigh each material into
@@ -438,7 +495,15 @@ export default function FormulaNew() {
               className="gap-1.5"
             >
               <Check className="size-4" />
-              {saving ? "Filing…" : isEdit ? "File as new version" : "File this formula"}
+              {saving
+                ? mode === "edit"
+                  ? "Saving…"
+                  : "Filing…"
+                : mode === "revise"
+                  ? "File as new version"
+                  : mode === "edit"
+                    ? "Save changes"
+                    : "File this formula"}
             </Button>
           </div>
         </header>
@@ -507,7 +572,7 @@ export default function FormulaNew() {
                 <Field
                   label="Version description"
                   hint={
-                    isEdit
+                    isRevise
                       ? "What changed in this revision — it prints on the sheet."
                       : "What this version is about — it prints on the sheet."
                   }
@@ -886,10 +951,14 @@ export default function FormulaNew() {
               >
                 <Check className="size-4" />
                 {saving
-                  ? "Filing…"
-                  : isEdit
+                  ? mode === "edit"
+                    ? "Saving…"
+                    : "Filing…"
+                  : mode === "revise"
                     ? "File as new version"
-                    : "File this formula"}
+                    : mode === "edit"
+                      ? "Save changes"
+                      : "File this formula"}
               </Button>
             </CardFooter>
           </Card>

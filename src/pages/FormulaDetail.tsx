@@ -39,6 +39,7 @@ import { Fragment, useState } from "react";
 import {
   ArrowLeft,
   ChevronRight,
+  GitBranch,
   GitCompare,
   PenLine,
   Printer,
@@ -260,6 +261,12 @@ export default function FormulaDetail() {
               <Button asChild variant="outline" className="gap-1.5">
                 <Link to={`/formulas/${detail._id}/edit`}>
                   <PenLine className="size-4" />
+                  Edit this version
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="gap-1.5">
+                <Link to={`/formulas/${detail._id}/revise`}>
+                  <GitBranch className="size-4" />
                   Revise as new version
                 </Link>
               </Button>

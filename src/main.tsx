@@ -135,7 +135,14 @@ createRoot(document.getElementById("root")!).render(
                 element={<Navigate to="/" replace />}
               />
               <Route path="/formulas/new" element={<FormulaNew />} />
-              <Route path="/formulas/:id/edit" element={<FormulaNew />} />
+              <Route
+                path="/formulas/:id/edit"
+                element={<FormulaNew mode="edit" />}
+              />
+              <Route
+                path="/formulas/:id/revise"
+                element={<FormulaNew mode="revise" />}
+              />
               <Route path="/formulas/:id" element={<FormulaDetail />} />
               <Route
                 path="/formulas/:id/print"

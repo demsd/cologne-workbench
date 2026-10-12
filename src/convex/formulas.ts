@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, type MutationCtx } from "./_generated/server";
 import {
   formulaStatusValidator,
   olfactiveGroupValidator,
@@ -174,6 +174,126 @@ export const lineage = query({
 });
 
 /**
+ * What filing (create) and revising (update) share: the particulars checked,
+ * every ingredient weighed to 4dp against a live shelf, and percentages
+ * settled to exactly 100.00. Returns the payload ready to write — one
+ * implementation so the two paths can never drift apart.
+ */
+type PreparedVersion = {
+  name: string;
+  status: Doc<"formulas">["status"];
+  versionNumber: string;
+  versionDescription: string | undefined;
+  batchWeightGrams: number;
+  concentrationPct: number;
+  bottleVolumeMl: number | undefined;
+  minDropGrams: number;
+  weighed: {
+    rawMaterialId: Id<"rawMaterials">;
+    materialName: string;
+    olfactiveGroup: OlfactiveGroup;
+    amountGrams: number;
+  }[];
+  totalGrams: number;
+  percentages: number[];
+};
+
+async function prepareVersion(
+  ctx: MutationCtx,
+  args: {
+    name: string;
+    status: Doc<"formulas">["status"];
+    versionNumber: string;
+    versionDescription?: string | undefined;
+    batchWeightGrams: number;
+    concentrationPct: number;
+    bottleVolumeMl?: number | undefined;
+    minDropGrams: number;
+    items: {
+      rawMaterialId: Id<"rawMaterials">;
+      olfactiveGroup: OlfactiveGroup;
+      amountGrams: number;
+    }[];
+  },
+): Promise<PreparedVersion> {
+  const name = args.name.trim();
+  const versionNumber = args.versionNumber.trim();
+
+  if (!name) throw new Error("The formula needs a name.");
+  if (!versionNumber) throw new Error("The version number cannot be empty.");
+  if (!(args.batchWeightGrams > 0)) {
+    throw new Error("Batch weight must be greater than zero grams.");
+  }
+  if (!(args.concentrationPct > 0 && args.concentrationPct <= 100)) {
+    throw new Error("Concentration must be between 0 and 100 percent.");
+  }
+  if (args.bottleVolumeMl !== undefined && args.bottleVolumeMl <= 0) {
+    throw new Error("Bottle volume must be greater than zero millilitres.");
+  }
+  if (!(args.minDropGrams > 0)) {
+    throw new Error("Minimum drop must be greater than zero grams.");
+  }
+  if (args.items.length === 0) {
+    throw new Error("Add at least one ingredient before filing.");
+  }
+
+  // Validate materials and weigh them to a fixed precision.
+  const weighed: {
+    rawMaterialId: Id<"rawMaterials">;
+    materialName: string;
+    olfactiveGroup: OlfactiveGroup;
+    amountGrams: number;
+  }[] = [];
+
+  for (const item of args.items) {
+    const material = await ctx.db.get(item.rawMaterialId);
+    if (!material) throw new Error("One of the ingredients is missing.");
+    if (!(item.amountGrams > 0)) {
+      throw new Error(`“${material.name}” needs an amount above zero grams.`);
+    }
+    const grams = roundTo(item.amountGrams, GRAM_DECIMALS);
+    if (grams < args.minDropGrams) {
+      throw new Error(
+        `“${material.name}” is below the minimum drop of ${args.minDropGrams} g.`,
+      );
+    }
+    weighed.push({
+      rawMaterialId: item.rawMaterialId,
+      materialName: material.name,
+      olfactiveGroup: item.olfactiveGroup,
+      amountGrams: grams,
+    });
+  }
+
+  const totalGrams = roundTo(
+    weighed.reduce((sum, w) => sum + w.amountGrams, 0),
+    GRAM_DECIMALS,
+  );
+  if (!(totalGrams > 0)) {
+    throw new Error("The formula weighs nothing in total.");
+  }
+
+  const percentages = computePercentages(weighed.map((w) => w.amountGrams));
+
+  return {
+    name,
+    status: args.status,
+    versionNumber,
+    versionDescription: args.versionDescription?.trim() || undefined,
+    batchWeightGrams: roundTo(args.batchWeightGrams, GRAM_DECIMALS),
+    concentrationPct: roundTo(args.concentrationPct, PCT_DECIMALS),
+    bottleVolumeMl:
+      args.bottleVolumeMl !== undefined
+        ? roundTo(args.bottleVolumeMl, PCT_DECIMALS)
+        : undefined,
+    minDropGrams: roundTo(args.minDropGrams, GRAM_DECIMALS),
+    weighed,
+    totalGrams,
+    percentages,
+  };
+}
+
+/**
  * File a formula: validates the particulars, weighs every ingredient to 4dp,
  * settles percentages to exactly 100.00, then writes the formula and its
  * ingredient rows in one transaction.
@@ -193,68 +313,13 @@ export const create = mutation({
     items: v.array(ingredientInput),
   },
   handler: async (ctx, args) => {
-    const name = args.name.trim();
-    const versionNumber = args.versionNumber.trim();
-
-    if (!name) throw new Error("The formula needs a name.");
-    if (!versionNumber) throw new Error("The version number cannot be empty.");
-    if (!(args.batchWeightGrams > 0)) {
-      throw new Error("Batch weight must be greater than zero grams.");
-    }
-    if (!(args.concentrationPct > 0 && args.concentrationPct <= 100)) {
-      throw new Error("Concentration must be between 0 and 100 percent.");
-    }
-    if (args.bottleVolumeMl !== undefined && args.bottleVolumeMl <= 0) {
-      throw new Error("Bottle volume must be greater than zero millilitres.");
-    }
-    if (!(args.minDropGrams > 0)) {
-      throw new Error("Minimum drop must be greater than zero grams.");
-    }
-    if (args.items.length === 0) {
-      throw new Error("Add at least one ingredient before filing.");
-    }
     if (args.parentId) {
       const parent = await ctx.db.get(args.parentId);
       if (!parent) throw new Error("The version being revised is missing.");
     }
 
-    // Validate materials and weigh them to a fixed precision.
-    const weighed: {
-      rawMaterialId: Id<"rawMaterials">;
-      materialName: string;
-      olfactiveGroup: OlfactiveGroup;
-      amountGrams: number;
-    }[] = [];
-
-    for (const item of args.items) {
-      const material = await ctx.db.get(item.rawMaterialId);
-      if (!material) throw new Error("One of the ingredients is missing.");
-      if (!(item.amountGrams > 0)) {
-        throw new Error(`“${material.name}” needs an amount above zero grams.`);
-      }
-      const grams = roundTo(item.amountGrams, GRAM_DECIMALS);
-      if (grams < args.minDropGrams) {
-        throw new Error(
-          `“${material.name}” is below the minimum drop of ${args.minDropGrams} g.`,
-        );
-      }
-      weighed.push({
-        rawMaterialId: item.rawMaterialId,
-        materialName: material.name,
-        olfactiveGroup: item.olfactiveGroup,
-        amountGrams: grams,
-      });
-    }
-
-    const totalGrams = roundTo(
-      weighed.reduce((sum, w) => sum + w.amountGrams, 0),
-      GRAM_DECIMALS,
-    );
-    if (!(totalGrams > 0)) {
-      throw new Error("The formula weighs nothing in total.");
-    }
-
-    const percentages = computePercentages(weighed.map((w) => w.amountGrams));
+    const { name, versionNumber, weighed, totalGrams, percentages } =
+      await prepareVersion(ctx, args);
 
     const formulaId = await ctx.db.insert("formulas", {
       name,
@@ -286,6 +351,86 @@ export const create = mutation({
     }
 
     return formulaId;
+  },
+});
+
+/**
+ * Edit a version in place: the same node keeps its id, version label and
+ * lineage, so batches, weighings and compare views stay linked. Ingredient
+ * rows are rewritten wholesale (a version's composition IS its row set) with
+ * percentages recomputed from the new amounts. Unprinted labels for pours
+ * from this version follow the edit; labels already printed keep what they
+ * went through the printer with.
+ */
+export const update = mutation({
+  args: {
+    id: v.id("formulas"),
+    name: v.string(),
+    status: formulaStatusValidator,
+    versionNumber: v.string(),
+    versionDescription: v.optional(v.string()),
+    batchWeightGrams: v.number(),
+    concentrationPct: v.number(),
+    bottleVolumeMl: v.optional(v.number()),
+    minDropGrams: v.number(),
+    items: v.array(ingredientInput),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db.get(args.id);
+    if (!existing) throw new Error("That version is missing.");
+
+    const prep = await prepareVersion(ctx, args);
+
+    await ctx.db.patch(args.id, {
+      name: prep.name,
+      status: prep.status,
+      versionNumber: prep.versionNumber,
+      versionDescription: prep.versionDescription,
+      batchWeightGrams: prep.batchWeightGrams,
+      concentrationPct: prep.concentrationPct,
+      // `undefined` removes the optional field — clearing is a real edit.
+      bottleVolumeMl: prep.bottleVolumeMl,
+      minDropGrams: prep.minDropGrams,
+      ingredientCount: prep.weighed.length,
+      totalGrams: prep.totalGrams,
+    });
+
+    const previous = await ctx.db
+      .query("formulaItems")
+      .withIndex("by_formula", (q) => q.eq("formulaId", args.id))
+      .collect();
+    for (const item of previous) await ctx.db.delete(item._id);
+    for (const [index, item] of prep.weighed.entries()) {
+      await ctx.db.insert("formulaItems", {
+        formulaId: args.id,
+        rawMaterialId: item.rawMaterialId,
+        materialName: item.materialName,
+        olfactiveGroup: item.olfactiveGroup,
+        amountGrams: item.amountGrams,
+        percentage: prep.percentages[index],
+        sortOrder: index,
+      });
+    }
+
+    const pours = await ctx.db
+      .query("productionBatches")
+      .withIndex("by_formula", (q) => q.eq("formulaId", args.id))
+      .collect();
+    for (const batch of pours) {
+      const label = await ctx.db
+        .query("labels")
+        .withIndex("by_batch", (q) => q.eq("batchId", batch._id))
+        .unique();
+      if (label && label.status === "queued") {
+        await ctx.db.patch(label._id, {
+          formulaName: prep.name,
+          formulaVersion: prep.versionNumber,
+          concentrationPct: prep.concentrationPct,
+        });
+      }
+    }
+
+    return { id: args.id, updatedIngredients: prep.weighed.length };
   },
 });
 
