@@ -1,123 +1,161 @@
 ## Overview
 
-Created this as an alternative to TapputiLab.com to run locally. It currently does not include everything [IFRA, etc], but I did add several features:
+Cologne Workbench is a single-perfumer formulation ledger — an alternative to
+[TapputiLab.com](https://tapputilab.com) that runs locally. It does not cover
+everything (IFRA, etc.), but it includes:
 
-* CSV importation of inventory including vendor, total grams, remaining grams, total cost of product in grams and price per gram
-* A Note Picker to allow for selection of notes [top, middle and base] that returns a list of formulas that use those notes
-* Backup & export feature to back up everything [as a json] including inventory [the shelf], formulas, batch records, etc, as well as downloading the vendor price list
+* **Formulas & versioning** — file formulas with weighed ingredients,
+  percentages that settle to exactly 100.00, and a version lineage. A version
+  can be **edited in place** (same node, batches and labels stay linked) or
+  **revised as a new version** (v1 → v1.1, linked by `parentId`).
+* **Scale calculator** — scale a formula to any target grams (×2/×3/×4
+  presets or a custom total) instantly, without touching the ledger.
+* **Weighing bench** — work through a pour with live rescaling when the scale
+  disagrees with the plan; each pour files an immutable production batch.
+* **Label printing** — labels queue automatically when a batch is filed
+  (name, version, concentration, total amount, description). Print on A4 grid
+  sheets (Avery L7160/L7163/L7654 + custom grids with partial-sheet offsets)
+  or direct 58/80 mm thermal rolls, with off-sheet validation before anything
+  reaches the printer.
+* **CSV importation of inventory** — vendor, total grams, remaining grams,
+  total cost and price per gram.
+* **Note Picker** — select top/middle/base notes and get the formulas that
+  use them.
+* **Backup & export** — everything as JSON (shelf, formulas, batch records),
+  plus the vendor price list.
 
-This project uses the following tech stack:
-- Vite
-- Typescript
-- React Router v7 (all imports from `react-router` instead of `react-router-dom`)
-- React 19 (for frontend components)
-- Tailwind v4 (for styling)
-- Shadcn UI (for UI components library)
-- Lucide Icons (for icons)
-- Convex (for backend & database)
-- Convex Auth (for authentication)
-- Framer Motion (for animations)
-- Three js (for 3d models)
+## Tech stack
 
-All relevant files live in the 'src' directory.
+- React 19 + TypeScript + Vite
+- React Router v7 (imports come from `react-router`, not `react-router-dom`)
+- Tailwind v4 + shadcn/ui + Lucide icons
+- Framer Motion (animations)
+- Convex (backend, database, and reactive client)
+- Vitest + convex-test (unit tests for pure logic and Convex functions)
+- Convex Auth: **removed** — the app has no sign-in (see below)
 
-Use bun for the package manager.
+Package manager: **Bun** in this cloud sandbox (run `bun install`), **npm** on
+a local machine (`npm install`). Both lockfiles are committed; keep them in
+sync when you change dependencies.
 
-## Setup
+## Architecture
 
-This project is set up already and running on a cloud environment, as well as a convex development in the sandbox.
-
-## Environment Variables
-
-The project is set up with project specific CONVEX_DEPLOYMENT and VITE_CONVEX_URL environment variables on the client side.
-
-The convex server has a separate set of environment variables that are accessible by the convex backend.
-
-Currently, these variables include auth-specific keys: JWKS, JWT_PRIVATE_KEY, and SITE_URL.
-
-
-# Using Authentication (Important!)
-
-You must follow these conventions when using authentication.
-
-## Auth is already set up.
-
-All convex authentication functions are already set up. The auth currently uses email OTP and anonymous users, but can support more.
-
-The email OTP configuration is defined in `src/convex/auth/emailOtp.ts`. DO NOT MODIFY THIS FILE.
-
-Also, DO NOT MODIFY THESE AUTH FILES: `src/convex/auth.config.ts` and `src/convex/auth.ts`.
-
-## Using Convex Auth on the backend
-
-On the `src/convex/users.ts` file, you can use the `getCurrentUser` function to get the current user's data.
-
-## Using Convex Auth on the frontend
-
-The `/auth` page is already set up to use auth. Navigate to `/auth` for all log in / sign up sequences.
-
-You MUST use this hook to get user data. Never do this yourself without the hook:
-```typescript
-import { useAuth } from "@/hooks/use-auth";
-
-const { isLoading, isAuthenticated, user, signIn, signOut } = useAuth();
+```
+src/
+├── main.tsx              # Entry: ConvexProvider → BrowserRouter → lazy routes
+├── pages/                # One component per route (see routes in main.tsx)
+├── components/           # App components; shadcn primitives in components/ui
+├── hooks/                # use-starter-materials, use-mobile
+├── lib/                  # PURE logic — shared by the UI *and* the backend
+│   ├── formula-math.ts   # rounding, percentages, version numbering, rescale
+│   └── label-templates.ts# A4/thermal sheet geometry, placement, fit checks
+└── convex/               # Backend: schema + queries/mutations
+    ├── schema.ts         # tables: rawMaterials, formulas, formulaItems,
+    │                     # productionBatches, batchItems, labels, …
+    ├── formulas.ts       # create / update (in-place edit) / remove / lineage
+    ├── batches.ts        # the pour: batch + items + label in one transaction
+    ├── labels.ts         # the label queue: list / enqueue / markPrinted
+    ├── rawMaterials.ts   # the shelf: CSV upsert, stock adjustments
+    └── _generated/       # codegen (api, dataModel, server) — never hand-edit
 ```
 
-## Protected Routes
+A key design decision: **`src/lib` is imported by the Convex backend itself**
+(`formulas.ts`, `batches.ts` and `rawMaterials.ts` all use
+`formula-math`). The composer's live preview and the numbers written at file
+time run the same algorithm — what you see is what gets filed.
 
-The starter `/dashboard` route is protected with `RequireAuth`. Extend that page
-for the product's authenticated experience, and reuse `RequireAuth` when adding
-another protected route — do NOT hand-roll a redirect to `/auth`, since landing
-on a bare sign-in form with no explanation of what was blocked is confusing.
+### Request flow
 
-`RequireAuth` states the block on the page the visitor asked for and sends them
-to `/auth?returnTo=<current route>` when they choose to sign in, so they come
-back to it. Pass `title` and `description` to say what the page is:
-
-```tsx
-<Route
-  path="/dashboard"
-  element={
-    <RequireAuth
-      title="Sign in to view your dashboard"
-      description="Your projects and settings live here."
-    >
-      <Dashboard />
-    </RequireAuth>
-  }
-/>
+```
+page component (src/pages)
+  └─ useQuery(api.formulas.get, …) / useMutation(api.batches.create, …)
+       └─ typed function reference from src/convex/_generated/api
+            └─ ConvexReactClient (provided by <ConvexProvider> in main.tsx)
+                 └─ WebSocket → Convex deployment
+                      └─ handler in src/convex/*.ts with a schema-validated ctx
+                           └─ result written; subscribed queries re-emit
+                                → component re-renders
 ```
 
-Pass `redirectImmediately` for a route where bouncing straight to `/auth` really
-is better.
+* Queries are **reactive subscriptions**: anything the handler reads
+  (including rows touched by other mutations) re-renders the component.
+  Don't duplicate server state into local state.
+* Local development runs two processes: Vite serves the frontend, and
+  `npx convex dev` (or `bunx convex dev --once` in this sandbox) watches
+  `src/convex`, pushes functions, and regenerates `_generated`.
 
-## Auth Page
+### The three flows most tied to the backend files
 
-The auth page is defined in `src/pages/Auth.tsx`. Send sign-in and sign-up actions
-to `/auth`.
+1. **Pour** — the Weighing page calls `batches.create`: validates the record
+   covers every ingredient of the formula version, writes the batch + items,
+   **queues the label, and decrements shelf stock — all in one transaction**.
+2. **Edit** — FormulaDetail → `/formulas/:id/edit` → `formulas.update`
+   (`prepareVersion` validation shared with `create`): patches the version,
+   rewrites the ingredient rows with recomputed percentages, and refreshes
+   *queued* labels (printed labels are history). `/formulas/:id/revise` files
+   a child version instead.
+3. **Print** — the Labels page serialises the chosen template geometry into
+   the print URL; `/labels/print` re-validates fit, lays labels on the sheet
+   via `label-templates`, calls `window.print()`, then stamps the rows
+   `printed` (`markPrinted`).
 
-## Authorization
+## Commands
 
-You can perform authorization checks on the frontend and backend.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` / `bun run dev` | Vite dev server |
+| `npx convex dev` | Convex functions + codegen (local) |
+| `bunx convex dev --once` | One-shot push + codegen (sandbox/CI) |
+| `npm test` / `bun run test` | Vitest, single run |
+| `npm run lint` | ESLint |
+| `bunx tsc -b --noEmit` | Type check |
+| `npm run build` | Type check + production build |
+| `npm run format` | Prettier |
 
-On the frontend, you can use the `useAuth` hook to get the current user's data and authentication state.
+## Testing
 
-You should also be protecting queries, mutations, and actions at the base level, checking for authorization securely.
+Vitest runs two projects (see `vitest.config.ts`):
 
-## Adding a redirect after auth
+* **lib** (`src/lib/*.test.ts`, node) — pure-math suites for
+  `formula-math` (rounding, 100.00-percentage invariant, version numbering,
+  rescale engine, formatting) and `label-templates` (Avery geometry,
+  placement/paging, fit validation).
+* **convex** (`src/convex/*.test.ts`, edge-runtime) — `convex-test` mocks the
+  Convex backend in memory. `src/convex/test.setup.ts` exposes the function
+  modules via `import.meta.glob`, and tests call the real API surface:
 
-The `/auth` route in `src/main.tsx` redirects to `/dashboard` by default. If the
-product's main authenticated route is different, update `redirectAfterAuth` to
-that route. A validated same-origin `returnTo` query parameter takes priority so
-users can resume the protected page they originally requested. Never leave an
-authenticated product redirecting back to the public landing page.
+```ts
+const t = convexTest(schema, modules);
+const id = await t.mutation(api.formulas.create, { … });
+await expect(t.mutation(api.formulas.update, { … })).rejects.toThrow(…);
+await t.run((ctx) => ctx.db.get(id)); // direct access when needed
+```
 
-## Complete authenticated products
+`*.test.ts` files inside `src/convex` are ignored by `convex dev`, so they
+never reach the deployment.
 
-When the requested product implies accounts, a workspace, a dashboard, or other
-signed-in functionality, the task is not complete with only a landing page and
-auth form. Build the main authenticated experience, protect its route, and verify
-that signing in reaches it.
+## Environment variables
+
+Client side (Vite): `VITE_CONVEX_URL` — the Convex deployment URL.
+The Convex CLI additionally uses `CONVEX_DEPLOYMENT` locally.
+
+There are **no auth keys**. Convex-side variables are only whatever a
+particular function needs via `process.env` (none today).
+
+## Authentication — deliberately none
+
+This is a single-perfumer app: there is no sign-in, no auth tables, no auth
+providers, and no protected routes. The former Convex Auth stack (auth.ts,
+auth.config.ts, users.ts, the /auth page, RequireAuth, use-auth) was removed
+entirely, which also cleared the deployment's auth-related env requirements.
+
+Consequences to keep in mind:
+
+* The frontend talks to Convex unauthenticated — anyone with the hosted URL
+  can read and write the ledger. Fine for local/personal use; add auth back
+  (properly) before exposing it publicly.
+* Don't reintroduce `@convex-dev/auth` casually — the schema, provider wiring
+  and routes were all stripped to remove it.
 
 # Frontend Conventions
 
@@ -143,24 +181,13 @@ Follow these conventions when using Shad CN components, which you should use by 
 - AVOID SHADOWS. Avoid adding any shadows to components. stick with a thin border without the shadow.
 - Avoid skeletons; instead, use the loader2 component to show a spinning loading state when loading data.
 
-
-## Landing Pages
-
-You must always create good-looking designer-level styles to your application. 
-- Make it well animated and fit a certain "theme", ie neo brutalist, retro, neumorphism, glass morphism, etc
-
-Use known images and emojis from online.
-
-If the user is logged in already, show the get started button to say "Dashboard" or "Profile" instead to take them there.
-
 ## Responsiveness and formatting
 
-Make sure pages are wrapped in a container to prevent the width stretching out on wide screens. Always make sure they are centered aligned and not off-center.
+Make sure pages are wrapped in a container to prevent the width stretching out on wide screens. Always make sure that they are centered aligned and not off-center.
 
 Always make sure that your designs are mobile responsive. Verify the formatting to ensure it has correct max and min widths as well as mobile responsiveness.
 
-- Always create sidebars for protected dashboard pages and navigate between pages
-- Always create navbars for landing pages
+- Always create sidebars for dashboard pages and navigate between pages
 - On these bars, the created logo should be clickable and redirect to the index page
 
 ## Animating with Framer Motion
@@ -169,19 +196,13 @@ You must add animations to components using Framer Motion. It is already install
 
 To use it, import the `motion` component from `framer-motion` and use it to wrap the component you want to animate.
 
-
 ### Other Items to animate
 - Fade in and Fade Out
-- Slide in and Slide Out animations
+- Slide in and Slide out animations
 - Rendering animations
 - Button clicks and UI elements
 
 Animate for all components, including on landing page and app pages.
-
-## Three JS Graphics
-
-Your app comes with three js by default. You can use it to create 3D graphics for landing pages, games, etc.
-
 
 ## Colors
 
@@ -209,91 +230,49 @@ Always follow a set theme style and ensure it is tuned to the user's liking.
 
 You should always use toasts to display results to the user, such as confirmations, results, errors, etc.
 
-Use the shad cn Sonner component as the toaster. For example:
+Use the shadcn Sonner component as the toaster, imported as `toast` from `sonner`:
 
+```tsx
+import { toast } from "sonner";
+
+toast.success("Filed in the ledger", { description: "Elixir · V1" });
+toast.error("Couldn't queue the labels", { description: "Try again." });
 ```
-import { toast } from "sonner"
-
-import { Button } from "@/components/ui/button"
-export function SonnerDemo() {
-  return (
-    <Button
-      variant="outline"
-      onClick={() =>
-        toast("Event has been created", {
-          description: "Sunday, December 03, 2023 at 9:00 AM",
-          action: {
-            label: "Undo",
-            onClick: () => console.log("Undo"),
-          },
-        })
-      }
-    >
-      Show Toast
-    </Button>
-  )
-}
-```
-
-Remember to import { toast } from "sonner". Usage: `toast("Event has been created.")`
 
 ## Dialogs
 
 Always ensure your larger dialogs have a scroll in its content to ensure that its content fits the screen size. Make sure that the content is not cut off from the screen.
 
-Ideally, instead of using a new page, use a Dialog instead. 
+Ideally, instead of using a new page, use a Dialog instead. Destructive
+actions (deleting a formula, removing a label) must confirm first via
+`AlertDialog`.
 
 # Using the Convex backend
 
-You will be implementing the convex backend. Follow your knowledge of convex and the documentation to implement the backend.
-
 ## The Convex Schema
-
-You must correctly follow the convex schema implementation.
 
 The schema is defined in `src/convex/schema.ts`.
 
-Do not include the `_id` and `_creationTime` fields in your queries (it is included by default for each table).
-Do not index `_creationTime` as it is indexed for you. Never have duplicate indexes.
+- Do not include `_id` and `_creationTime` fields in your queries (added by default per table).
+- Do not index `_creationTime`; it is indexed for you. Never have duplicate indexes.
+- Validators are shared value objects (`formulaStatusValidator`,
+  `olfactiveGroupValidator`, …) — reuse them rather than re-declaring unions.
 
+## Rules of thumb
 
-## Convex Actions: Using CRUD operations
-
-When running anything that involves external connections, you must use a convex action with "use node" at the top of the file.
-
-You cannot have queries or mutations in the same file as a "use node" action file. Thus, you must use pre-built queries and mutations in other files.
-
-You can also use the pre-installed internal crud functions for the database:
-
-```ts
-// in convex/users.ts
-import { crud } from "convex-helpers/server/crud";
-import schema from "./schema.ts";
-
-export const { create, read, update, destroy } = crud(schema, "users");
-
-// in some file, in an action:
-const user = await ctx.runQuery(internal.users.read, { id: userId });
-
-await ctx.runMutation(internal.users.update, {
-  id: userId,
-  patch: {
-    status: "inactive",
-  },
-});
-```
-
+- Queries/mutations live in their own files under `src/convex`; external I/O
+  requires a `"use node"` action file with no queries/mutations alongside it.
+- Never write return type validators; infer them.
 
 ## Common Convex Mistakes To Avoid
 
-When using convex, make sure:
-- Document IDs are referenced as `_id` field, not `id`.
-- Document ID types are referenced as `Id<"TableName">`, not `string`.
-- Document object types are referenced as `Doc<"TableName">`.
-- Keep schemaValidation to false in the schema file.
-- You must correctly type your code so that it passes the type checker.
-- You must handle null / undefined cases of your convex queries for both frontend and backend, or else it will throw an error that your data could be null or undefined.
-- Always use the `@/folder` path, with `@/convex/folder/file.ts` syntax for importing convex files.
-- This includes importing generated files like `@/convex/_generated/server`, `@/convex/_generated/api`
-- Remember to import functions like useQuery, useMutation, useAction, etc. from `convex/react`
-- NEVER have return type validators.
+- Document IDs are referenced as `_id`, not `id`.
+- Document ID types are `Id<"TableName">`, not `string`; document objects are `Doc<"TableName">`.
+- Keep `schemaValidation` false in the schema file.
+- Type your code so it passes the type checker.
+- Handle null / undefined from queries on both sides — data may be missing.
+- Always import with the `@/folder` paths, including generated files
+  (`@/convex/_generated/api`, `@/convex/_generated/server`).
+- Import `useQuery`, `useMutation`, `useAction`, etc. from `convex/react`.
+- In a mutation, `undefined` in `insert`/`patch` means "field absent" — that
+  is how optional fields are cleared, not a no-op.
