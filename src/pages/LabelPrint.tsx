@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   getTemplate,
+  gridExtent,
+  gridFits,
   pageCount,
   placement,
   sheetCapacity,
@@ -70,6 +72,11 @@ export default function LabelPrint() {
   const template = useMemo(() => templateFromParams(params), [params]);
   const start = Math.round(num(params.get("s"), 1));
 
+  /** Second gate on the same rule as the queue page — the URL can be
+      hand-edited, and an off-sheet grid must never reach the dialog. */
+  const fits = template.kind === "a4" ? gridFits(template) : true;
+  const extent = gridExtent(template);
+
   /** The selected ids, in the order they were chosen. */
   const ids = useMemo(
     () => (params.get("ids") ?? "").split(",").filter(Boolean),
@@ -92,7 +99,7 @@ export default function LabelPrint() {
    * user has actually seen the dialog (print or cancel — the run was shown).
    */
   function handlePrint() {
-    if (!chosen || chosen.length === 0) return;
+    if (!chosen || chosen.length === 0 || !fits) return;
     const selectedIds = chosen.map((label) => label._id);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
@@ -211,7 +218,7 @@ export default function LabelPrint() {
             </p>
             <Button
               className="gap-1.5"
-              disabled={chosen.length === 0}
+              disabled={chosen.length === 0 || !fits}
               onClick={handlePrint}
             >
               <Printer className="size-4" />
@@ -219,6 +226,19 @@ export default function LabelPrint() {
             </Button>
           </div>
         </div>
+
+        {!fits ? (
+          <div
+            role="alert"
+            className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            <span className="label-caps mr-2">Off-sheet</span>
+            This grid reaches {extent.widthMm.toFixed(1)} ×{" "}
+            {extent.heightMm.toFixed(1)} mm on a 210 × 297 mm sheet — labels
+            beyond the edge would clip at the printer. Go back and trim the
+            counts, label size, gaps, or margins.
+          </div>
+        ) : null}
 
         {chosen.length === 0 ? (
           <div className="paper-sheet mt-10 rounded-lg border border-border/70 px-6 py-14 text-center">

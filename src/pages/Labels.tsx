@@ -14,6 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   LABEL_TEMPLATES,
   getTemplate,
+  gridExtent,
+  gridFits,
   sheetCapacity,
 } from "@/lib/label-templates";
 import { formatGrams } from "@/lib/formula-math";
@@ -66,6 +68,28 @@ export default function Labels() {
   const capacity = template.kind === "a4" ? sheetCapacity(template) : 0;
   const start = Math.max(1, Math.round(num(startInput, 1)));
 
+  /** The template as configured right now — custom fields parsed & clamped,
+      so what is validated is exactly what will be printed. */
+  const effectiveTemplate = useMemo(() => {
+    if (templateId !== "custom") return template;
+    return {
+      ...template,
+      labelWidthMm: num(custom.w, template.labelWidthMm),
+      labelHeightMm: num(custom.h, template.labelHeightMm),
+      cols: Math.max(1, Math.round(num(custom.cols, template.cols))),
+      rows: Math.max(1, Math.round(num(custom.rows, template.rows))),
+      sideMm: num(custom.side, template.sideMm),
+      topMm: num(custom.top, template.topMm),
+      gapXMm: gapNum(custom.gapX, template.gapXMm),
+      gapYMm: gapNum(custom.gapY, template.gapYMm),
+    };
+  }, [template, templateId, custom]);
+
+  /** Off-sheet grids clip silently at the printer — refuse to send them. */
+  const fits =
+    effectiveTemplate.kind === "a4" ? gridFits(effectiveTemplate) : true;
+  const extent = gridExtent(effectiveTemplate);
+
   const queued = labels?.filter((l) => l.status === "queued") ?? [];
   const printed = labels?.filter((l) => l.status === "printed") ?? [];
 
@@ -115,22 +139,21 @@ export default function Labels() {
 
   /** Hand the selection to the print view, geometry included. */
   function handlePrint() {
+    if (!fits) return;
     const params = new URLSearchParams();
     params.set("ids", [...selected].join(","));
     params.set("t", templateId);
     if (template.kind === "a4") {
       if (start !== 1) params.set("s", String(start));
       if (templateId === "custom") {
-        params.set("cw", String(num(custom.w, 63.5)));
-        params.set("ch", String(num(custom.h, 38.1)));
-        // Clamped to ≥1: a value like 0.4 would round to 0 and make the
-        // grid maths (capacity, slots) collapse to NaN on the print page.
-        params.set("cc", String(Math.max(1, Math.round(num(custom.cols, 3)))));
-        params.set("cr", String(Math.max(1, Math.round(num(custom.rows, 7)))));
-        params.set("cs", String(num(custom.side, 7.3)));
-        params.set("ct", String(num(custom.top, 15.2)));
-        params.set("gx", String(gapNum(custom.gapX, 2.5)));
-        params.set("gy", String(gapNum(custom.gapY, 0)));
+        params.set("cw", String(effectiveTemplate.labelWidthMm));
+        params.set("ch", String(effectiveTemplate.labelHeightMm));
+        params.set("cc", String(effectiveTemplate.cols));
+        params.set("cr", String(effectiveTemplate.rows));
+        params.set("cs", String(effectiveTemplate.sideMm));
+        params.set("ct", String(effectiveTemplate.topMm));
+        params.set("gx", String(effectiveTemplate.gapXMm));
+        params.set("gy", String(effectiveTemplate.gapYMm));
       }
     } else {
       params.set("h", String(num(thermalHeight, 40)));
@@ -286,12 +309,29 @@ export default function Labels() {
                 ))}
               </div>
             ) : null}
+
+            {!fits ? (
+              <p
+                role="alert"
+                className="mt-3 flex flex-wrap items-baseline gap-x-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+              >
+                <span className="label-caps">Off-sheet</span>
+                <span>
+                  {effectiveTemplate.cols} × {effectiveTemplate.rows} at{" "}
+                  {effectiveTemplate.labelWidthMm} ×{" "}
+                  {effectiveTemplate.labelHeightMm} mm reaches{" "}
+                  {extent.widthMm.toFixed(1)} × {extent.heightMm.toFixed(1)}{" "}
+                  mm — beyond the 210 × 297 mm sheet. Trim the counts, label
+                  size, gaps, or margins to print.
+                </span>
+              </p>
+            ) : null}
           </section>
 
           {/* ——— Catch-up / actions ——— */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <Button
-              disabled={selected.size === 0}
+              disabled={selected.size === 0 || !fits}
               onClick={handlePrint}
               className="gap-1.5"
             >

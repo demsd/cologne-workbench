@@ -144,6 +144,34 @@ export function sheetCapacity(t: LabelTemplate): number {
   return t.cols * t.rows;
 }
 
+/** Total mm the grid occupies, measured from the sheet origin. */
+export function gridExtent(t: LabelTemplate): {
+  widthMm: number;
+  heightMm: number;
+} {
+  return {
+    widthMm:
+      t.sideMm + t.cols * t.labelWidthMm + (t.cols - 1) * Math.max(0, t.gapXMm),
+    heightMm:
+      t.topMm + t.rows * t.labelHeightMm + (t.rows - 1) * Math.max(0, t.gapYMm),
+  };
+}
+
+/**
+ * Does the whole grid land inside the sheet? The published presets always
+ * do (their margins were chosen to fit A4); custom geometry is user-typed,
+ * so both print surfaces check this before anything reaches the dialog —
+ * an over-sized grid would otherwise clip off-sheet, silently, at the
+ * printer. Thermal rolls are exempt: the label is cut to whatever height
+ * the job asks for and the width is the roll width by construction.
+ */
+export function gridFits(t: LabelTemplate): boolean {
+  if (t.kind === "thermal") return true;
+  const { widthMm, heightMm } = gridExtent(t);
+  const slop = 0.01; // absorb float noise from mm arithmetic
+  return widthMm <= t.pageWidthMm + slop && heightMm <= t.pageHeightMm + slop;
+}
+
 /**
  * Where label `index` (0-based, in print order) lands: page index and slot
  * within that page's grid. The start offset advances into the grid first,
