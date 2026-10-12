@@ -146,7 +146,12 @@ export default function FormulaNew({
     prefilled.current = true;
     setName(source.name);
     setStatus(source.status);
-    setVersionDescription(source.versionDescription ?? "");
+    // Edit keeps the description so it can be adjusted in place; a revision
+    // starts blank — it is this version's own change-note, not a copy of
+    // the parent's (carrying it forward would file stale text by default).
+    setVersionDescription(
+      mode === "revise" ? "" : (source.versionDescription ?? ""),
+    );
     setVersionNumber(
       mode === "revise"
         ? nextVersionNumber(source.versionNumber)
