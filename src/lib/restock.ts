@@ -7,13 +7,24 @@ import type {
  * The reorder lines the bench works by: fragrance oils run low at 56 g
  * (two ounces), while the bulk categories — alcohol and fixatives — reorder
  * at 453 g (a pound). A `null` rule means "use the material's own reorder
- * line" (diluents have no stated rule yet).
+ * line" (diluents and the product bases have no stated rule yet).
  */
 export const RESTOCK_RULES: Record<MaterialCategory, number | null> = {
   "Fragrance Oil": 56,
+  // Accords are dosed like fragrance oils, so they share the two-ounce line.
+  Accord: 56,
   Alcohol: 453,
   Fixative: 453,
   Diluent: null,
+  "Bar Soap Base": null,
+  "Beard Oil Base": null,
+  "Body Wash Base": null,
+  "Candle Wax": null,
+  "Conditioner Base": null,
+  "Facial Cleanser Base": null,
+  "Lotion Base": null,
+  "Shampoo Base": null,
+  Solubilizer: null,
 };
 
 export type RestockMaterial = {
