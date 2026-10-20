@@ -1,8 +1,10 @@
 ## Overview
 
 Cologne Workbench is a single-perfumer formulation ledger — an alternative to
-[TapputiLab.com](https://tapputilab.com) that runs locally. It does not cover
-everything (IFRA, etc.), but it includes:
+[TapputiLab.com](https://tapputilab.com) that runs locally. One module from
+the original plan — an **IFRA Compliance Checker** — is deliberately left
+out and is a natural first contribution for anyone forking the project.
+Beyond that, it includes:
 
 * **Formulas & versioning** — file formulas with weighed ingredients,
   percentages that settle to exactly 100.00, and a version lineage. A version
