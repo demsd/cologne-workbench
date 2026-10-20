@@ -8,8 +8,20 @@ import { Infer, v } from "convex/values";
 export const MATERIAL_CATEGORIES = [
   "Alcohol",
   "Fragrance Oil",
+  // Pre-blended scent blocks — bought or mixed, they behave like a material.
+  "Accord",
   "Fixative",
   "Diluent",
+  // Product bases — the body-care and candle lines the bench also formulates.
+  "Bar Soap Base",
+  "Beard Oil Base",
+  "Body Wash Base",
+  "Candle Wax",
+  "Conditioner Base",
+  "Facial Cleanser Base",
+  "Lotion Base",
+  "Shampoo Base",
+  "Solubilizer",
 ] as const;
 export const materialCategoryValidator = v.union(
   ...MATERIAL_CATEGORIES.map((c) => v.literal(c)),
@@ -24,6 +36,20 @@ export const OLFACTIVE_GROUPS = [
   // Carriers weigh in as their own group — vendor price lists and real
   // batches both treat perfumer's alcohol as a line item, not a note.
   "Alcohol",
+  // Accords likewise stand apart from the pyramid: they are blends, not
+  // single notes, and the bench weighs them as line items.
+  "Accord",
+  // Product bases group under their own name too, so a soap- or candle-base
+  // line reads as itself on the sheet instead of masquerading as a note.
+  "Bar Soap Base",
+  "Beard Oil Base",
+  "Body Wash Base",
+  "Candle Wax",
+  "Conditioner Base",
+  "Facial Cleanser Base",
+  "Lotion Base",
+  "Shampoo Base",
+  "Solubilizer",
 ] as const;
 export const olfactiveGroupValidator = v.union(
   ...OLFACTIVE_GROUPS.map((g) => v.literal(g)),
