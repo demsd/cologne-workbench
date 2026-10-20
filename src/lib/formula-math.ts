@@ -112,6 +112,18 @@ export const GROUP_ORDER: OlfactiveGroup[] = [
   "Base",
   "Fixative",
   "Alcohol",
+  "Accord",
+  // Product bases follow the olfactive notes — same reading order the
+  // composer, the ledger and the print sheet all share.
+  "Bar Soap Base",
+  "Beard Oil Base",
+  "Body Wash Base",
+  "Candle Wax",
+  "Conditioner Base",
+  "Facial Cleanser Base",
+  "Lotion Base",
+  "Shampoo Base",
+  "Solubilizer",
 ];
 
 export const GROUP_HEADINGS: Record<OlfactiveGroup, string> = {
@@ -120,6 +132,16 @@ export const GROUP_HEADINGS: Record<OlfactiveGroup, string> = {
   Base: "Base Notes",
   Fixative: "Fixatives",
   Alcohol: "Alcohol",
+  Accord: "Accords",
+  "Bar Soap Base": "Bar Soap Base",
+  "Beard Oil Base": "Beard Oil Base",
+  "Body Wash Base": "Body Wash Base",
+  "Candle Wax": "Candle Wax",
+  "Conditioner Base": "Conditioner Base",
+  "Facial Cleanser Base": "Facial Cleanser Base",
+  "Lotion Base": "Lotion Base",
+  "Shampoo Base": "Shampoo Base",
+  Solubilizer: "Solubilizer",
 };
 
 /** The subsections that actually have ingredients, in perfumery order. */

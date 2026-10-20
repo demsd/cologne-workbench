@@ -126,7 +126,7 @@ export function parseInventoryCsv(text: string): InventoryCsvPreview {
     }
     const group = matchGroup(cells[1]);
     if (!group) {
-      errors.push(`Line ${line}: “${cells[1] || "—"}” is not Top/Middle/Base/Fixative.`);
+      errors.push(`Line ${line}: “${cells[1] || "—"}” is not a known group (${OLFACTIVE_GROUPS.join(", ")}).`);
       continue;
     }
     const initialGrams = toNumber(cells[2]);
@@ -155,7 +155,7 @@ export function parseInventoryCsv(text: string): InventoryCsvPreview {
         : null;
     if (cells[7] && !category) {
       errors.push(
-        `Line ${line}: “${cells[7]}” is not a known category (Alcohol, Fragrance Oil, Fixative, Diluent).`,
+        `Line ${line}: “${cells[7]}” is not a known category (${MATERIAL_CATEGORIES.join(", ")}).`,
       );
       continue;
     }
