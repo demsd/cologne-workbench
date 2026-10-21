@@ -641,7 +641,10 @@ export default function FormulaNew({
                     className="h-10 text-right font-mono"
                   />
                 </Field>
-                <Field label="Minimum drop (g)" hint="No ingredient may weigh less">
+                <Field
+                  label="Minimum drop (g)"
+                  hint="No ingredient may weigh less"
+                >
                   <Input
                     type="number"
                     min="0"
