@@ -641,10 +641,7 @@ export default function FormulaNew({
                     className="h-10 text-right font-mono"
                   />
                 </Field>
-                <Field
-                  label="Minimum drop (g)"
-                  hint="No ingredient may weigh less"
-                >
+                <Field label="Minimum drop (g)" hint="No ingredient may weigh less">
                   <Input
                     type="number"
                     min="0"
@@ -697,7 +694,10 @@ export default function FormulaNew({
                       </PopoverTrigger>
                       <PopoverContent
                         align="start"
-                        className="w-[var(--radix-popover-trigger-width)] p-0"
+                        // Match the trigger, but never narrower than ~28rem so
+                        // material names read in full (capped to the viewport
+                        // on small screens).
+                        className="w-[var(--radix-popover-trigger-width)] min-w-[28rem] max-w-[calc(100vw_-_2rem)] p-0"
                       >
                         <Command>
                           <CommandInput placeholder="Type to search materials…" />
