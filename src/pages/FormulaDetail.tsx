@@ -50,13 +50,24 @@ import { Link, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "convex/react";
 
-/** Ink colours per subsection — ochre, olive, oxblood, faded indigo. */
+/** Ink colours per subsection — ochre, olive, oxblood, faded indigo, sepia
+ *  (the base subsections cycle the same five inks). */
 const GROUP_COLORS: Record<OlfactiveGroup, string> = {
   Top: "var(--chart-1)",
   Middle: "var(--chart-2)",
   Base: "var(--chart-3)",
   Fixative: "var(--chart-4)",
   Alcohol: "var(--chart-5)",
+  Accord: "var(--chart-2)",
+  "Bar Soap Base": "var(--chart-1)",
+  "Beard Oil Base": "var(--chart-2)",
+  "Body Wash Base": "var(--chart-3)",
+  "Candle Wax": "var(--chart-4)",
+  "Conditioner Base": "var(--chart-5)",
+  "Facial Cleanser Base": "var(--chart-1)",
+  "Lotion Base": "var(--chart-2)",
+  "Shampoo Base": "var(--chart-3)",
+  Solubilizer: "var(--chart-4)",
 };
 
 export default function FormulaDetail() {
